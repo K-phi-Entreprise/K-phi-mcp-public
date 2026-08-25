@@ -52,14 +52,26 @@ module.exports = function mountSandbox(app, ctx) {
   const MAX_ENTRIES = parseInt(process.env.SANDBOX_MAX_ENTRIES || '200000', 10);
   const NAME_PREFIX = 'MCP-';
 
-  if (!SECRET) { SLog.info('SANDBOX', 'disabled (KPHI_SANDBOX_SECRET unset)'); return; }
   const JWT_SECRET = ctx.JWT_SECRET || process.env.JWT_SECRET;
-  if (!JWT_SECRET) { SLog.error('SANDBOX', 'JWT_SECRET unavailable — disabled'); return; }
+  /* Routes are ALWAYS registered so tools/route-table.js sees the same table
+     in every environment (gate 1 invariant). Enablement is decided per
+     request: without KPHI_SANDBOX_SECRET every call is a 404 and the purge
+     cron never starts. */
+  const ENABLED = !!(SECRET && JWT_SECRET);
+  if (!ENABLED) SLog.info('SANDBOX', 'disabled (KPHI_SANDBOX_SECRET or JWT_SECRET unset) — routes registered, all 404');
 
   function secretOk(req) {
+    if (!ENABLED) return false;
     const given = req.headers['x-sandbox-secret'];
     if (!given || given.length !== SECRET.length) return false;
     return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(SECRET));
+  }
+  /* Disabled → 404 (not 401): the feature does not exist on this deployment,
+     and a 404 leaks nothing about whether a secret is configured. */
+  function gate(req, res) {
+    if (!ENABLED) { res.status(404).json({ error: 'not found' }); return false; }
+    if (!secretOk(req)) { res.status(401).json({ error: 'unauthorized' }); return false; }
+    return true;
   }
 
   /* tenants.created_at is TEXT written as datetime('now') elsewhere, i.e.
@@ -86,7 +98,7 @@ module.exports = function mountSandbox(app, ctx) {
 
   /* ── create sandbox tenant + service token ────────────────────── */
   app.post('/api/internal/sandbox/tenant', async (req, res) => {
-    if (!secretOk(req)) return res.status(401).json({ error: 'unauthorized' });
+    if (!gate(req, res)) return;
     try {
       const tid = crypto.randomBytes(16).toString('hex');   /* same shape as /api/auth/register */
       const name = sandboxName();
@@ -107,7 +119,7 @@ module.exports = function mountSandbox(app, ctx) {
 
   /* ── token for an EXISTING sandbox tenant ─────────────────────── */
   app.post('/api/internal/sandbox/token', async (req, res) => {
-    if (!secretOk(req)) return res.status(401).json({ error: 'unauthorized' });
+    if (!gate(req, res)) return;
     const tid = String((req.body && req.body.tenantId) || '');
     if (!/^[a-f0-9]{32}$/.test(tid)) return res.status(400).json({ error: 'tenantId required' });
     const t = await q1(ctx.masterDb, 'SELECT id, name FROM tenants WHERE id=?', [tid]);
@@ -141,8 +153,9 @@ module.exports = function mountSandbox(app, ctx) {
       SLog.error('SANDBOX', 'purge failed', { error: e.message });
     }
   }
-  setInterval(purgeStale, EVERY_MIN * 60 * 1000).unref();
-  setTimeout(purgeStale, 30 * 1000).unref();
-
-  SLog.info('SANDBOX', 'enabled', { tokenTtl: TOKEN_TTL, purgeHours: TTL_HOURS, maxEntries: MAX_ENTRIES });
+  if (ENABLED) {
+    setInterval(purgeStale, EVERY_MIN * 60 * 1000).unref();
+    setTimeout(purgeStale, 30 * 1000).unref();
+    SLog.info('SANDBOX', 'enabled', { tokenTtl: TOKEN_TTL, purgeHours: TTL_HOURS, maxEntries: MAX_ENTRIES });
+  }
 };

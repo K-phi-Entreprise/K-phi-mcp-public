@@ -34,12 +34,30 @@ export class KphiHttpEngine implements AnalysisEngine {
   async analyze(input: AnalyzeInput): Promise<AnalysisResult> {
     const parsed = parseLedger(input.content);
     const sb = await this.createSandbox();
-    const ver = parsed.period_to ? `ACT_${parsed.period_to.replace("-", "")}` : "ACT_IMPORT";
-    await this.importVersion(sb.token, ver, parsed.entries, parsed.period_to);
-    const stmts = await this.statements(sb.token, ver);
-    const result = toAnalysisResult(parsed, stmts, input);
-    // Rattachement pour la conversion : /a/:analysis_id → magic link → user dans CE tenant.
-    result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver };
+
+    // Modèle K-Phi : UNE version = UN mois, nommée YYYY-MM. C'est ce que fait
+    // l'import-wizard et ce que le cumul (asOf) exige (compare lexicographique
+    // sur les noms de version). Une version multi-mois n'est ni cumulée ni
+    // sommée par le moteur.
+    const byPeriod = new Map<string, typeof parsed.entries>();
+    for (const e of parsed.entries) { const l = byPeriod.get(e.period) ?? []; l.push(e); byPeriod.set(e.period, l); }
+    const periods = [...byPeriod.keys()].sort();
+    for (const per of periods) await this.importVersion(sb.token, per, byPeriod.get(per)!);
+    const last = periods[periods.length - 1];
+
+    // Bilan = position cumulée jusqu'au dernier mois (asOf). Ratios de position
+    // (trésorerie, dette, liquidité, DSO/DPO) viennent de cette lecture.
+    const position = await this.statements(sb.token, { asOf: last });
+    // P&L = flux : le moteur le rend par mois quoi qu'il arrive en mode cumulé
+    // (voir routes/statements.js, scope.pers). Pour un diagnostic d'exercice on
+    // somme les flux mensuels ici — arithmétiquement exact, et cohérent avec ce
+    // que le prospect verra ensuite mois par mois dans la plateforme.
+    const monthly = periods.length > 1
+      ? await Promise.all(periods.map(per => this.statements(sb.token, { ver: per })))
+      : [position];
+
+    const result = toAnalysisResult(parsed, position, monthly, input);
+    result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last };
     return result;
   }
 
@@ -72,34 +90,35 @@ export class KphiHttpEngine implements AnalysisEngine {
     return j.token;
   }
 
-  private async importVersion(token: string, ver: string, entries: unknown[], vdatePeriod: string) {
-    const vdate = vdatePeriod ? `${vdatePeriod}-01` : new Date().toISOString().slice(0, 10);
+  private async importVersion(token: string, ver: string, entries: unknown[]) {
     const r = await this.fetch("/api/gl/import", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ver, vdate, mode: "replace", version_type: "ACTUALS", entries }),
+      body: JSON.stringify({ ver, vdate: `${ver}-01`, mode: "replace", version_type: "ACTUALS", entries }),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({})) as { error?: string };
-      throw new Error(`import: ${r.status} ${j.error ?? ""}`);
+      throw new Error(`import ${ver}: ${r.status} ${j.error ?? ""}`);
     }
   }
 
-  private async statements(token: string, ver: string): Promise<StatementsPayload> {
-    const r = await this.fetch(`/api/statements?ver=${encodeURIComponent(ver)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  private async statements(token: string, scope: { ver?: string; asOf?: string }): Promise<StatementsPayload> {
+    const qs = new URLSearchParams();
+    if (scope.asOf) qs.set("asOf", scope.asOf); else if (scope.ver) qs.set("ver", scope.ver);
+    const r = await this.fetch(`/api/statements?${qs.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
     const j = await r.json() as StatementsPayload & { error?: string; message?: string };
     if (!r.ok) throw new Error(`statements: ${r.status} ${j.error ?? ""} ${j.message ?? ""}`);
     return j;
   }
 
-
   private async fetch(path: string, init: RequestInit): Promise<Response> {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), this.timeout);
+    // Le moteur exige X-Requested-With sur tout POST/DELETE /api/* (garde CSRF
+    // globale, server.js). N'importe quelle valeur ; absent → 403 avant auth.
+    const headers = { "X-Requested-With": "kphi-mcp-public", ...(init.headers as Record<string, string> ?? {}) };
     try {
-      return await fetch(`${this.cfg.baseUrl.replace(/\/$/, "")}${path}`, { ...init, signal: ctrl.signal });
+      return await fetch(`${this.cfg.baseUrl.replace(/\/$/, "")}${path}`, { ...init, headers, signal: ctrl.signal });
     } finally { clearTimeout(t); }
   }
 }
@@ -118,26 +137,41 @@ interface StatementsPayload {
 }
 
 /**
- * Les clés exactes de `kpi`/`ratios` viennent de modules/kpi.js (moteur navigateur
- * exécuté serveur). Elles ne sont pas figées ici : on cherche chaque KPI attendu
- * sous plusieurs noms plausibles, et on expose de toute façon TOUT `kpi` et
- * `ratios` en brut dans `raw` pour ajuster le mapping sur un vrai retour.
+ * Clés réelles observées sur GET /api/statements (modules/kpi.js exécuté
+ * serveur, relevé du 2026-08-25) :
+ *   kpi    : libellés lisibles — "Net Revenue", "EBITDA", "Net Income",
+ *            "Opening Cash", "Total Assets", "Total Liabilities", "Total Equity",
+ *            "Gross Profit", "Operating Income", …  + "_sanity" (diagnostics)
+ *   ratios : camelCase — dso, dpo, dio, ccc, dscr, ebitdaMargin, netMargin,
+ *            grossMargin, debtToEbitda, debtToEquity, currentRatio, quickRatio,
+ *            workingCapital, interestCoverage, roe, roa, …  ; non calculable = null
+ *            avec la raison dans _<ratio>NA ; + "_warnings" (avertissements)
+ * Les noms secondaires restent en repli au cas où kpi.js évolue.
  */
-const KPI_SPEC: Array<{ id: string; label: string; unit: string; keys: string[] }> = [
-  { id: "revenue",         label: "Chiffre d'affaires",   unit: "CCY", keys: ["revenue", "sales", "turnover", "ca", "netRevenue"] },
-  { id: "ebitda",          label: "EBITDA",               unit: "CCY", keys: ["ebitda", "EBITDA"] },
-  { id: "ebitda_margin",   label: "Marge d'EBITDA",       unit: "%",   keys: ["ebitdaMargin", "ebitda_margin", "ebitdaPct"] },
-  { id: "net_income",      label: "Résultat net",         unit: "CCY", keys: ["netIncome", "net_income", "netResult", "result"] },
-  { id: "cash",            label: "Trésorerie",           unit: "CCY", keys: ["cash", "closingCash", "cashBalance", "treasury"] },
-  { id: "working_capital", label: "BFR",                  unit: "CCY", keys: ["workingCapital", "bfr", "wcr", "nwc"] },
-  { id: "dso",             label: "DSO",                  unit: "days",keys: ["dso", "DSO"] },
-  { id: "dpo",             label: "DPO",                  unit: "days",keys: ["dpo", "DPO"] },
-  { id: "net_debt",        label: "Dette nette",          unit: "CCY", keys: ["netDebt", "net_debt"] },
-  { id: "net_debt_ebitda", label: "Dette nette / EBITDA", unit: "x",   keys: ["netDebtToEbitda", "leverage", "netDebtEbitda"] },
-  { id: "dscr",            label: "DSCR",                 unit: "x",   keys: ["dscr", "DSCR"] },
-  { id: "gearing",         label: "Gearing",              unit: "%",   keys: ["gearing", "debtToEquity"] },
-  { id: "current_ratio",   label: "Ratio de liquidité",   unit: "x",   keys: ["currentRatio", "current_ratio", "liquidity"] },
-  { id: "cash_runway",     label: "Cash runway",          unit: "months", keys: ["runway", "cashRunway", "runwayMonths"] },
+const KPI_SPEC: Array<{ id: string; label: string; unit: string; keys: string[]; na?: string }> = [
+  { id: "revenue",         label: "Chiffre d'affaires",   unit: "CCY",   keys: ["Net Revenue", "revenue", "_rev"] },
+  { id: "gross_profit",    label: "Marge brute",          unit: "CCY",   keys: ["Gross Profit", "_gross"] },
+  { id: "ebitda",          label: "EBITDA",               unit: "CCY",   keys: ["EBITDA", "_ebitda"] },
+  { id: "ebitda_margin",   label: "Marge d'EBITDA",       unit: "%",     keys: ["ebitdaMargin"] },
+  { id: "operating_income",label: "Résultat d'exploitation", unit: "CCY", keys: ["Operating Income", "_opInc"] },
+  { id: "net_income",      label: "Résultat net",         unit: "CCY",   keys: ["Net Income", "_ni"] },
+  { id: "net_margin",      label: "Marge nette",          unit: "%",     keys: ["netMargin"] },
+  { id: "cash",            label: "Trésorerie",           unit: "CCY",   keys: ["_cash", "Opening Cash"] },
+  { id: "working_capital", label: "BFR",                  unit: "CCY",   keys: ["workingCapital"] },
+  { id: "dso",             label: "DSO",                  unit: "days",  keys: ["dso"], na: "_dsoNA" },
+  { id: "dpo",             label: "DPO",                  unit: "days",  keys: ["dpo"], na: "_dpoNA" },
+  { id: "dio",             label: "DIO",                  unit: "days",  keys: ["dio"], na: "_dioNA" },
+  { id: "ccc",             label: "Cycle de conversion",  unit: "days",  keys: ["ccc"] },
+  { id: "total_debt",      label: "Dette financière",     unit: "CCY",   keys: ["_totalDebt"] },
+  { id: "net_debt_ebitda", label: "Dette / EBITDA",       unit: "x",     keys: ["debtToEbitda"] },
+  { id: "debt_to_equity",  label: "Dette / Fonds propres", unit: "x",    keys: ["debtToEquity"] },
+  { id: "dscr",            label: "DSCR",                 unit: "x",     keys: ["dscr"] },
+  { id: "interest_coverage", label: "Couverture des intérêts", unit: "x", keys: ["interestCoverage"] },
+  { id: "current_ratio",   label: "Ratio de liquidité",   unit: "x",     keys: ["currentRatio"] },
+  { id: "quick_ratio",     label: "Liquidité réduite",    unit: "x",     keys: ["quickRatio"] },
+  { id: "total_assets",    label: "Total actif",          unit: "CCY",   keys: ["Total Assets", "_totalAssets"] },
+  { id: "total_equity",    label: "Fonds propres",        unit: "CCY",   keys: ["Total Equity", "_totalEquity"] },
+  { id: "roe",             label: "ROE",                  unit: "%",     keys: ["roe"] },
 ];
 
 function pick(src: Record<string, unknown> | null | undefined, keys: string[]): number | undefined {
@@ -150,43 +184,73 @@ function pick(src: Record<string, unknown> | null | undefined, keys: string[]): 
   return undefined;
 }
 
-function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, s: StatementsPayload, input: AnalyzeInput): AnalysisResult {
-  const src = { ...(s.ratios ?? {}), ...(s.kpi ?? {}) };
+/** KPI de FLUX (P&L) : sommés sur les lectures mensuelles. Tout le reste est une POSITION lue sur asOf. */
+const FLOW_IDS = new Set(["revenue", "gross_profit", "ebitda", "operating_income", "net_income"]);
+
+function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: StatementsPayload,
+                          monthly: StatementsPayload[], input: AnalyzeInput): AnalysisResult {
+  const posK = (position.kpi ?? {}) as Record<string, unknown>;
+  const posR = (position.ratios ?? {}) as Record<string, unknown>;
+  const posSrc = { ...posR, ...posK };
   const kpis: Kpi[] = [];
+  const alerts: string[] = [];
+  const nMonths = monthly.length;
+
   for (const spec of KPI_SPEC) {
-    const v = pick(src, spec.keys);
-    if (v === undefined) continue;
+    let v: number | undefined;
+    if (FLOW_IDS.has(spec.id)) {
+      // somme des flux mensuels ; undefined si aucun mois ne le fournit
+      let sum = 0, seen = false;
+      for (const m of monthly) { const x = pick({ ...(m.ratios ?? {}), ...(m.kpi ?? {}) } as Record<string, unknown>, spec.keys); if (x !== undefined) { sum += x; seen = true; } }
+      v = seen ? sum : undefined;
+    } else {
+      v = pick(posSrc, spec.keys);
+    }
+    if (v === undefined) {
+      const why = spec.na ? posR[spec.na] : undefined;
+      if (typeof why === "string" && why) alerts.push(`${spec.label} non calculable (${why}).`);
+      continue;
+    }
     kpis.push({ id: spec.id, label: spec.label, value: v, unit: spec.unit === "CCY" ? parsed.currency : spec.unit });
   }
 
-  // Covenants demandés : statut ok/breach sur les KPI présents
-  const alerts: string[] = [];
+  // Ratios flux/position recalculés sur l'exercice (le moteur les rend par mois).
+  const g = (id: string) => kpis.find(k => k.id === id);
+  const set = (id: string, value: number) => { const k = g(id); if (k) k.value = value; };
+  const rev = g("revenue")?.value, ebitda = g("ebitda")?.value, ni = g("net_income")?.value;
+  const debt = g("total_debt")?.value, equity = g("total_equity")?.value;
+  if (rev && ebitda !== undefined) set("ebitda_margin", ebitda / rev);
+  if (rev && ni !== undefined) set("net_margin", ni / rev);
+  if (ebitda && debt !== undefined) set("net_debt_ebitda", debt / ebitda);
+  if (equity && ni !== undefined) set("roe", ni / equity);
+  // Les ratios en % arrivent en fraction (0.22) : normalisés ici, une seule fois.
+  for (const k of kpis) if (k.unit === "%" && Math.abs(k.value) <= 5) k.value = k.value * 100;
+  for (const k of kpis) k.value = Math.round(k.value * 100) / 100;
+
+  // Diagnostics moteur : kpi._sanity (critiques) et ratios._warnings — remontés tels quels.
+  const sanity = Array.isArray(posK._sanity) ? posK._sanity as Array<{ severity?: string; metric?: string; msg?: string }> : [];
+  for (const d of sanity) if (d?.msg) alerts.push(`[${d.severity ?? "info"}] ${d.metric ? d.metric + " — " : ""}${d.msg}`);
+  const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
+  for (const d of rw) if (d?.msg) alerts.push(`${d.metric ? d.metric + " — " : ""}${d.msg}`);
+  if (nMonths > 1) alerts.push(`Exercice : P&L sommé sur ${nMonths} mois (${parsed.period_from} → ${parsed.period_to}), bilan au ${parsed.period_to}.`);
+
   for (const c of input.covenants ?? []) {
-    const k = kpis.find(x => x.id === c.name.toLowerCase().replace(/[^a-z_]/g, "") || x.label.toLowerCase() === c.name.toLowerCase());
+    const key = c.name.toLowerCase().replace(/[^a-z_]/g, "");
+    const k = kpis.find(x => x.id === key || x.label.toLowerCase() === c.name.toLowerCase());
     if (!k) { alerts.push(`Covenant « ${c.name} » : KPI non calculable sur cet export.`); continue; }
     const ok = c.operator === ">=" ? k.value >= c.threshold : c.operator === ">" ? k.value > c.threshold
              : c.operator === "<=" ? k.value <= c.threshold : k.value < c.threshold;
     k.threshold = c.threshold; k.status = ok ? "ok" : "breach";
     if (!ok) alerts.push(`${k.label} à ${k.value} ${k.unit}, hors seuil ${c.operator} ${c.threshold} — risque de breach covenant.`);
   }
-  for (const w of [...parsed.warnings, ...(s.warnings ?? [])]) alerts.push(w);
-
-  const summary = buildSummary(kpis, parsed, alerts);
+  for (const w of [...parsed.warnings, ...(position.warnings ?? [])]) alerts.push(w);
 
   return {
-    detected: {
-      format: parsed.format,
-      chart_of_accounts: "auto",        // détecté par le moteur ; non exposé par /api/statements à ce stade
-      currency: parsed.currency,
-      period: `${parsed.period_from}..${parsed.period_to}`,
-      entries: parsed.entries.length,
-    },
-    kpis,
-    alerts,
-    summary_markdown: summary,
-    // Brut pour ajuster KPI_SPEC sur un vrai retour — à retirer une fois le mapping validé.
-    ...( { raw: { kpi: s.kpi ?? null, ratios: s.ratios ?? null, pl_lines: (s.pl ?? []).length, bs_lines: (s.bs ?? []).length } } as object ),
-  } as AnalysisResult;
+    detected: { format: parsed.format, chart_of_accounts: "auto", currency: parsed.currency,
+                period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length },
+    kpis, alerts,
+    summary_markdown: buildSummary(kpis, parsed, alerts),
+  };
 }
 
 function buildSummary(kpis: Kpi[], parsed: ReturnType<typeof parseLedger>, alerts: string[]): string {

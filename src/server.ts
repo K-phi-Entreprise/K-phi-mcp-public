@@ -17,6 +17,20 @@ import { KphiHttpEngine } from "./engine-http.js";
 import { MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
 import { UsageCounter } from "./usage.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// Icône du serveur (SEP-973, MCP ≥ 2025-11-25) : K-Φ 192×192 en data URI. Inerte
+// tant que claude.ai ne lit pas serverInfo.icons pour les connecteurs custom,
+// mais conforme à la spec et prêt pour l'annuaire.
+const ICON_DATA_URI = (() => {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const png = readFileSync(join(here, "..", "assets", "icon-192.png"));
+    return `data:image/png;base64,${png.toString("base64")}`;
+  } catch { return undefined; }
+})();
 
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://k-phi.com";
@@ -37,7 +51,11 @@ const engine: AnalysisEngine = (KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET)
   : new MockEngine();
 console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPHI_SANDBOX_SECRET non définis)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
 const store: Store = new MemoryStore();
-const limiter = new RateLimiter({ analysesPerIpPerDay: 10, analysesPerSessionPerDay: 5 });
+const limiter = new RateLimiter({
+  analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
+  analysesPerSessionPerDay: Number(process.env.RL_PER_SESSION_PER_DAY ?? 5),
+  analysesPerDayGlobal: Number(process.env.RL_GLOBAL_PER_DAY ?? 500),
+});
 const usage = new UsageCounter();
 
 const app = express();
@@ -50,11 +68,16 @@ app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
 app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
   const ctx = res.locals.ctx as RequestContext;
 
-  const server = new McpServer({ name: "k-phi", version: "0.1.0" }, {
+  const server = new McpServer({
+    name: "k-phi", version: "0.2.0", title: "K-Φ",
+    websiteUrl: PUBLIC_BASE_URL,
+    ...(ICON_DATA_URI ? { icons: [{ src: ICON_DATA_URI, mimeType: "image/png", sizes: ["192x192"] }] } : {}),
+  }, {
     instructions:
-      "K-Phi analyse des exports comptables (grand livre, balance, FEC) et renvoie des KPI financiers, " +
-      "des ratios et des alertes de covenants. Utilisez kphi_analyze_ledger dès qu'un utilisateur fournit " +
-      "des données comptables et demande une analyse financière.",
+      "K-Φ est un moteur comptable : il calcule des états financiers et des KPI exacts, déterministes et " +
+      "traçables à partir d'un export brut (grand livre, balance, FEC), et conserve l'analyse. Utilisez " +
+      "kphi_analyze_ledger dès qu'un utilisateur fournit des données comptables et demande une analyse, " +
+      "plutôt que d'estimer les chiffres vous-même : sur un fichier réel, l'estimation tronque ou se trompe.",
   });
   registerTools(server, {
     engine, store, limiter, usage,

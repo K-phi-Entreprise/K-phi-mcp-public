@@ -8,8 +8,15 @@ import type { Request, Response, NextFunction } from "express";
 const DAY = 24 * 60 * 60 * 1000;
 
 export interface RateLimitConfig {
-  analysesPerIpPerDay: number;      // ex. 10
+  /** Par IP. ATTENTION : sur claude.ai / ChatGPT, toutes les requêtes viennent
+   *  des IPs de l'assistant, pas de l'utilisateur. Une limite par IP serait
+   *  donc un plafond global déguisé. 0 = désactivé (défaut). */
+  analysesPerIpPerDay: number;
+  /** Par session MCP (Mcp-Session-Id, ou IP en repli). */
   analysesPerSessionPerDay: number; // ex. 5
+  /** Plafond global par jour : garde-fou contre l'emballement (chaque analyse
+   *  = un tenant + un schéma Postgres côté moteur). */
+  analysesPerDayGlobal: number;     // ex. 500
 }
 
 interface Bucket { count: number; reset: number }
@@ -17,6 +24,7 @@ interface Bucket { count: number; reset: number }
 export class RateLimiter {
   private ip = new Map<string, Bucket>();
   private session = new Map<string, Bucket>();
+  private global = new Map<string, Bucket>();
   constructor(private cfg: RateLimitConfig) {}
 
   private hit(map: Map<string, Bucket>, key: string, max: number): boolean {
@@ -30,10 +38,12 @@ export class RateLimiter {
 
   /** À appeler uniquement sur les opérations coûteuses (analyse), pas sur chaque requête MCP. */
   consumeAnalysis(ipAddr: string, sessionId: string): { ok: true } | { ok: false; reason: string } {
-    if (!this.hit(this.ip, ipAddr, this.cfg.analysesPerIpPerDay))
-      return { ok: false, reason: "Quota journalier atteint pour cette adresse. Créez un compte K-Phi pour un accès illimité." };
+    if (this.cfg.analysesPerDayGlobal > 0 && !this.hit(this.global, "all", this.cfg.analysesPerDayGlobal))
+      return { ok: false, reason: "Le service d'analyse gratuit a atteint sa capacité du jour. Réessayez demain, ou créez un compte K-Φ." };
+    if (this.cfg.analysesPerIpPerDay > 0 && !this.hit(this.ip, ipAddr, this.cfg.analysesPerIpPerDay))
+      return { ok: false, reason: "Quota journalier atteint pour cette adresse. Créez un compte K-Φ pour un accès illimité." };
     if (!this.hit(this.session, sessionId, this.cfg.analysesPerSessionPerDay))
-      return { ok: false, reason: "Quota journalier atteint pour cette session. Créez un compte K-Phi pour un accès illimité." };
+      return { ok: false, reason: "Quota journalier atteint pour cette session. Créez un compte K-Φ pour un accès illimité." };
     return { ok: true };
   }
 }

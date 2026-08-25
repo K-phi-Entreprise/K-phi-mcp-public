@@ -208,6 +208,7 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   const posSrc = { ...posR, ...posK };
   const kpis: Kpi[] = [];
   const alerts: string[] = [];
+  const notes: string[] = [];
   const nMonths = monthly.length;
 
   for (const spec of KPI_SPEC) {
@@ -241,12 +242,32 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   for (const k of kpis) if (k.unit === "%" && Math.abs(k.value) <= 5) k.value = k.value * 100;
   for (const k of kpis) k.value = Math.round(k.value * 100) / 100;
 
-  // Diagnostics moteur : kpi._sanity (critiques) et ratios._warnings — remontés tels quels.
+  // kpi._sanity : vraies anomalies détectées par le moteur (CA négatif, DR/CR
+  // inversés…) — restent dans `alerts`, ce sont des problèmes à corriger.
   const sanity = Array.isArray(posK._sanity) ? posK._sanity as Array<{ severity?: string; metric?: string; msg?: string }> : [];
   for (const d of sanity) if (d?.msg) alerts.push(`[${d.severity ?? "info"}] ${d.metric ? d.metric + " — " : ""}${d.msg}`);
+
+  // ratios._warnings : états par défaut du moteur (pas de structure de groupe
+  // configurée, etc.) — ce sont des choses à AFFINER dans K-Φ, pas des erreurs.
+  // Mappées en français plutôt que de repasser le texte anglais brut ; repli
+  // sur le texte moteur si un type de warning encore inconnu apparaît.
   const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
-  for (const d of rw) if (d?.msg) alerts.push(`${d.metric ? d.metric + " — " : ""}${d.msg}`);
-  if (nMonths > 1) alerts.push(`Exercice : P&L sommé sur ${nMonths} mois (${parsed.period_from} → ${parsed.period_to}), bilan au ${parsed.period_to}.`);
+  for (const d of rw) {
+    if (d?.metric === "Consolidation") {
+      notes.push("Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux " +
+        "intercos). Pour une consolidation complète, définissez la structure de groupe dans K-Φ " +
+        "(Réglages → Organisation → Structure de groupe).");
+    } else if (d?.msg) {
+      notes.push(`${d.metric ? d.metric + " — " : ""}${d.msg} (réglable dans K-Φ)`);
+    }
+  }
+  // Devise : le moteur/parseur retiennent une devise unique tant qu'aucun
+  // mapping multi-devises n'est configuré. Vrai par défaut, pas une erreur.
+  for (const w of parsed.warnings) {
+    if (/devise|currency/i.test(w)) notes.push(`${w} Affinable dans K-Φ si vos comptes couvrent plusieurs devises.`);
+    else alerts.push(w);   // ex. déséquilibre DR/CR : un vrai problème de fichier
+  }
+  if (nMonths > 1) notes.push(`Exercice : P&L sommé sur ${nMonths} mois (${parsed.period_from} → ${parsed.period_to}), bilan au ${parsed.period_to}.`);
 
   for (const c of input.covenants ?? []) {
     const key = c.name.toLowerCase().replace(/[^a-z_]/g, "");
@@ -257,12 +278,12 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
     k.threshold = c.threshold; k.status = ok ? "ok" : "breach";
     if (!ok) alerts.push(`${k.label} à ${k.value} ${k.unit}, hors seuil ${c.operator} ${c.threshold} — risque de breach covenant.`);
   }
-  for (const w of [...parsed.warnings, ...(position.warnings ?? [])]) alerts.push(w);
+  for (const w of position.warnings ?? []) alerts.push(w);
 
   return {
     detected: { format: parsed.format, chart_of_accounts: "auto", currency: parsed.currency,
                 period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length },
-    kpis, alerts,
+    kpis, alerts, notes,
     summary_markdown: buildSummary(kpis, parsed, alerts),
   };
 }

@@ -47,6 +47,11 @@ export interface AnalysisResult {
   };
   kpis: Kpi[];
   alerts: string[];
+  /** États par défaut attendus, configurables dans K-Φ pour plus de précision
+   *  (ex. consolidation non paramétrée, devise unique supposée) — pas des
+   *  problèmes. Séparé de `alerts` pour que Claude ne les commente pas comme
+   *  des défauts moteur : voir buildNotes() dans engine-http.ts. */
+  notes: string[];
   summary_markdown: string;
   /** Rempli par le moteur réel : le tenant K-Phi qui héberge cette analyse,
    *  à réclamer par le prospect (conversion). Absent avec le mock. */
@@ -104,6 +109,8 @@ export class MockEngine implements AnalysisEngine {
         chart_of_accounts: "PCG", currency: "EUR", period: "2025-01-01..2025-12-31", entries },
       kpis,
       alerts,
+      notes: ["Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux intercos). " +
+        "Pour une consolidation complète, définissez la structure de groupe dans K-Φ."],
       summary_markdown:
         "**Synthèse** — Activité en croissance (+11 %) avec une marge d'EBITDA de 12 %, " +
         "dans la médiane du secteur. Point de vigilance : le DSCR (1,08) est sous le seuil " +

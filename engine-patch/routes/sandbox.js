@@ -58,7 +58,15 @@ module.exports = function mountSandbox(app, ctx) {
      request: without KPHI_SANDBOX_SECRET every call is a 404 and the purge
      cron never starts. */
   const ENABLED = !!(SECRET && JWT_SECRET);
-  if (!ENABLED) SLog.info('SANDBOX', 'disabled (KPHI_SANDBOX_SECRET or JWT_SECRET unset) — routes registered, all 404');
+  /* Nothing is logged at mount time: routes/*.js are mounted under a stubbed
+     ctx by tests/routes-ctx-smoke.test.js, and the convention across routes/
+     is to log from handlers and timers only. First-call log below. */
+  let _announced = false;
+  function announce() {
+    if (_announced) return; _announced = true;
+    if (ENABLED) SLog.info('SANDBOX', 'enabled', { tokenTtl: TOKEN_TTL, purgeHours: TTL_HOURS, maxEntries: MAX_ENTRIES });
+    else SLog.info('SANDBOX', 'disabled (KPHI_SANDBOX_SECRET or JWT_SECRET unset) — routes registered, all 404');
+  }
 
   function secretOk(req) {
     if (!ENABLED) return false;
@@ -69,6 +77,7 @@ module.exports = function mountSandbox(app, ctx) {
   /* Disabled → 404 (not 401): the feature does not exist on this deployment,
      and a 404 leaks nothing about whether a secret is configured. */
   function gate(req, res) {
+    announce();
     if (!ENABLED) { res.status(404).json({ error: 'not found' }); return false; }
     if (!secretOk(req)) { res.status(401).json({ error: 'unauthorized' }); return false; }
     return true;
@@ -155,7 +164,6 @@ module.exports = function mountSandbox(app, ctx) {
   }
   if (ENABLED) {
     setInterval(purgeStale, EVERY_MIN * 60 * 1000).unref();
-    setTimeout(purgeStale, 30 * 1000).unref();
-    SLog.info('SANDBOX', 'enabled', { tokenTtl: TOKEN_TTL, purgeHours: TTL_HOURS, maxEntries: MAX_ENTRIES });
+    setTimeout(() => { announce(); purgeStale(); }, 30 * 1000).unref();
   }
 };

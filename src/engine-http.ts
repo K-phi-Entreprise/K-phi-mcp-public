@@ -57,6 +57,25 @@ export class KphiHttpEngine implements AnalysisEngine {
     for (const per of periods) await this.importVersion(sb.token, per, byPeriod.get(per)!);
     const last = periods[periods.length - 1];
 
+    /* Seed des intitulés de compte AVANT les lectures statements : cfg.coa
+       est la première source des libellés d'états ET une entrée de
+       classifyAcct — les KPI lus juste après en profitent. Best-effort :
+       un moteur sans le endpoint (404) ou un échec réseau n'invalide pas
+       l'analyse, header_text par écriture couvre déjà l'affichage. */
+    const coa = parsed.coa_dict ?? {};
+    if (Object.keys(coa).length > 0) {
+      try {
+        const r = await this.fetch("/api/internal/sandbox/coa", {
+          method: "POST",
+          headers: { "X-Sandbox-Secret": this.cfg.serviceSecret, "Content-Type": "application/json" },
+          body: JSON.stringify({ tenantId: sb.tenantId, coa }),
+        });
+        if (!r.ok) console.warn(`coa seed: ${r.status} (non bloquant)`);
+      } catch (e) {
+        console.warn("coa seed failed (non bloquant):", e instanceof Error ? e.message : e);
+      }
+    }
+
     // Bilan = position cumulée jusqu'au dernier mois (asOf). Ratios de position
     // (trésorerie, dette, liquidité, DSO/DPO) viennent de cette lecture.
     const position = await this.statements(sb.token, { asOf: last });

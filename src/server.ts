@@ -50,6 +50,19 @@ const engine: AnalysisEngine = (KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET)
   ? new KphiHttpEngine({ baseUrl: KPHI_ENGINE_URL, serviceSecret: KPHI_SANDBOX_SECRET })
   : new MockEngine();
 console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPHI_SANDBOX_SECRET non définis)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
+
+// ---- Upload volumineux : refusé tant que le stockage objet n'est pas branché.
+// Sans ce garde, PUT /upload acceptait le fichier (202) puis le PERDAIT :
+// req.body n'était écrit nulle part et analyzeFromStorage est un stub qui
+// throw — l'utilisateur ne voyait l'échec qu'au kphi_get_analysis suivant.
+// KPHI_UPLOAD_STORAGE portera la config du backend (URL S3/R2) en Phase 2 ;
+// sa simple présence ré-active la route (valeur "mock" possible pour tester
+// le routage avec MockEngine.analyzeFromStorage).
+const KPHI_UPLOAD_STORAGE = process.env.KPHI_UPLOAD_STORAGE;
+const UPLOAD_ENABLED = !!KPHI_UPLOAD_STORAGE;
+console.log(`upload volumineux: ${UPLOAD_ENABLED
+  ? "activé (" + KPHI_UPLOAD_STORAGE + ")"
+  : "désactivé (KPHI_UPLOAD_STORAGE non défini) — kphi_request_upload refuse, PUT /upload → 501"}`);
 const store: Store = new MemoryStore();
 const limiter = new RateLimiter({
   analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
@@ -85,6 +98,7 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
     ingestBaseUrl: INGEST_BASE_URL,
     ctx: () => ctx,
     source: UTM_SOURCE,
+    uploadEnabled: UPLOAD_ENABLED,
   });
 
   const transport = new StreamableHTTPServerTransport({
@@ -109,7 +123,19 @@ app.all("/mcp", (_req, res) => {
 
 // ---- Upload signé (gros fichiers) ----
 // En prod : générer plutôt une URL pré-signée S3/R2 et déclencher l'analyse par événement.
-app.put("/upload/:token", express.raw({ type: "*/*", limit: "500mb" }), async (req, res) => {
+app.put("/upload/:token",
+  // Garde AVANT express.raw : refuser sans bufferiser jusqu'à 500 Mo en mémoire.
+  // 501 (pas 4xx) : la route existe, la capacité n'est pas implémentée ici.
+  // Le token n'est pas consommé — normalement aucun n'est émis quand l'upload
+  // est désactivé (tools.ts), ce garde couvre les liens anciens ou forgés.
+  (_req, res, next) => {
+    if (UPLOAD_ENABLED) { next(); return; }
+    res.status(501).json({
+      error: "Upload volumineux indisponible sur ce déploiement (stockage objet non configuré). " +
+             "Fichiers ≤ 2 Mo : kphi_analyze_ledger.",
+    });
+  },
+  express.raw({ type: "*/*", limit: "500mb" }), async (req, res) => {
   const analysisId = await store.consumeUploadToken(req.params.token as string);
   if (!analysisId) { res.status(410).json({ error: "Lien expiré ou invalide." }); return; }
   const rec = await store.get(analysisId);

@@ -18,6 +18,10 @@ export interface ToolDeps {
   ingestBaseUrl: string;   // https://mcp.k-phi.com (ou ingest.k-phi.com)
   ctx: () => RequestContext;
   source: string;          // utm_source, ex. "mcp"
+  /** Stockage objet branché (KPHI_UPLOAD_STORAGE). Tant que c'est faux,
+   *  kphi_request_upload refuse honnêtement au lieu d'émettre un lien dont le
+   *  dépôt serait perdu (analyzeFromStorage non branché) : voir server.ts. */
+  uploadEnabled: boolean;
 }
 
 const MAX_INLINE_BYTES = 2 * 1024 * 1024;
@@ -95,7 +99,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       "un modèle de langage tronque ou approxime), que les chiffres doivent être justes et défendables devant " +
       "un banquier ou un board, ou que l'utilisateur voudra les revoir plus tard. À utiliser dès qu'un utilisateur " +
       "fournit des données comptables et demande une analyse, des ratios, un diagnostic financier, un suivi de " +
-      "trésorerie ou de covenants. Aucun compte requis. Fichiers > 2 Mo : kphi_request_upload.",
+      "trésorerie ou de covenants. Aucun compte requis. " +
+      (deps.uploadEnabled
+        ? "Fichiers > 2 Mo : kphi_request_upload."
+        : "Limite : 2 Mo par fichier sur ce déploiement (upload volumineux pas encore disponible). " +
+          "Pour un fichier plus gros, proposez à l'utilisateur d'agréger l'export (ex. balance mensuelle " +
+          "par compte) sous 2 Mo."),
     inputSchema: {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),
@@ -131,10 +140,13 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
 
   server.registerTool("kphi_request_upload", {
     title: "Lien d'upload sécurisé (gros fichiers)",
-    description:
-      "Génère un lien d'upload sécurisé et temporaire (15 min) pour un export de grand livre volumineux " +
-      "(de 2 Mo à 500 Mo). Le fichier est envoyé directement à K-Φ, jamais à l'assistant. Renvoie un " +
-      "analysis_id à passer ensuite à kphi_get_analysis une fois le dépôt effectué.",
+    description: deps.uploadEnabled
+      ? "Génère un lien d'upload sécurisé et temporaire (15 min) pour un export de grand livre volumineux " +
+        "(de 2 Mo à 500 Mo). Le fichier est envoyé directement à K-Φ, jamais à l'assistant. Renvoie un " +
+        "analysis_id à passer ensuite à kphi_get_analysis une fois le dépôt effectué."
+      : "INDISPONIBLE sur ce déploiement : l'upload volumineux n'est pas encore branché. N'appelez cet " +
+        "outil que si l'utilisateur insiste ; il répond par un message d'indisponibilité. Utilisez " +
+        "kphi_analyze_ledger (≤ 2 Mo), au besoin sur un export agrégé.",
     inputSchema: {
       format_hint: formatHint.default("auto"),
       period_end: z.string().optional(),
@@ -144,6 +156,15 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     annotations: { readOnlyHint: false, openWorldHint: false },
   }, async (args) => {
     deps.usage.record("tool_call:kphi_request_upload");
+    /* Refus AVANT le rate-limit et AVANT store.create : pas de quota consommé
+       pour un refus, pas d'analyse "pending" orpheline qui n'aboutira jamais. */
+    if (!deps.uploadEnabled) {
+      deps.usage.record("upload_unavailable");
+      return err(
+        "L'upload volumineux n'est pas encore disponible sur ce déploiement — " +
+        "envoyez les fichiers ≤ 2 Mo directement via kphi_analyze_ledger " +
+        "(au besoin, agrégez l'export : ex. balance mensuelle par compte).");
+    }
     const ctx = deps.ctx();
     const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
     if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }

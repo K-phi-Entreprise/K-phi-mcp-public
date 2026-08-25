@@ -22,6 +22,7 @@ Variables d'environnement :
 | `PUBLIC_BASE_URL` | https://k-phi.com | base des liens `open_in_kphi_url` / `report_share_url` |
 | `INGEST_BASE_URL` | http://localhost:PORT | base des liens d'upload signés |
 | `UTM_SOURCE` | mcp | attribution |
+| `KPHI_UPLOAD_STORAGE` | *(non défini)* | backend de stockage objet pour l'upload volumineux. **Non défini → upload désactivé** : `kphi_request_upload` refuse honnêtement et `PUT /upload/:token` répond 501 (avant ce garde, le fichier était accepté puis perdu). Valeur `mock` pour tester le routage en local avec le moteur mock. |
 
 ## Tester dans Claude Desktop (avant référencement)
 

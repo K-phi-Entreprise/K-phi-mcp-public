@@ -14,6 +14,8 @@ export type EventName =
   | "analysis_ready"
   | "analysis_error"
   | "rate_limited"
+  | "upload_unavailable"  // kphi_request_upload appelé alors que KPHI_UPLOAD_STORAGE est absent :
+                          // mesure la demande réelle pour l'upload volumineux avant de le construire
   | "conversion_click";   // clic sur open_in_kphi_url (voir server.ts, redirect /a/:id)
 
 interface DayBucket { [event: string]: number }

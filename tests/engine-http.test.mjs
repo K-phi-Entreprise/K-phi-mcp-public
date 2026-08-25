@@ -102,3 +102,32 @@ test("taxonomie : NeedsInput → question structurée ; Engine → jamais la fau
   const other = describeAnalysisError(new Error("boom"), "an_4");
   assert.match(other.text, /an_4/);
 });
+
+/* ── Seed CoA (Phase 2) ──────────────────────────────────────────── */
+
+test("coa_dict transmis à /api/internal/sandbox/coa avec le secret, AVANT statements", async () => {
+  const calls = mockEngine();
+  const order = [];
+  const base = globalThis.fetch;
+  let coaBody = null, coaHeaders = null;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.includes("/sandbox/coa")) {
+      order.push("coa"); coaBody = JSON.parse(init.body); coaHeaders = init.headers;
+      return new Response(JSON.stringify({ seeded: 2 }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (u.includes("/api/statements")) order.push("statements");
+    return base(url, init);
+  };
+  await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  assert.deepEqual(coaBody.coa, { "10100": "Cash", "40000": "Sales" });
+  assert.equal(coaBody.tenantId, "a".repeat(32));
+  assert.equal(coaHeaders["X-Sandbox-Secret"], "s");
+  assert.ok(order.indexOf("coa") < order.indexOf("statements"), "seed avant les lectures");
+});
+
+test("moteur sans le endpoint coa (404) : l'analyse aboutit quand même", async () => {
+  mockEngine(); /* le mock répond 404 sur les URLs inconnues, dont /sandbox/coa */
+  const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  assert.equal(r.detected.entries, 4);
+});

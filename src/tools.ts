@@ -5,6 +5,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { AnalysisEngine, AnalysisResult } from "./engine.js";
+import { ParseError, NeedsInputError } from "./parse-ledger.js";
+import { EngineError } from "./engine-http.js";
 import type { Store } from "./store.js";
 import type { RateLimiter, RequestContext } from "./ratelimit.js";
 import type { UsageCounter } from "./usage.js";
@@ -134,7 +136,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       const msg = e instanceof Error ? e.message : String(e);
       await deps.store.update(rec.id, { status: "error", error: msg });
       deps.usage.record("analysis_error");
-      return err(`Impossible de lire ce fichier : ${msg}. Vérifiez qu'il s'agit d'un export comptable (grand livre, balance, FEC) et précisez format_hint si possible.`);
+      const d = describeAnalysisError(e, rec.id);
+      return {
+        content: [{ type: "text" as const, text: d.text }],
+        ...(d.needs ? { structuredContent: { needs: d.needs, analysis_id: rec.id } } : {}),
+        isError: true,
+      };
     }
   });
 
@@ -227,4 +234,35 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
 
 function err(message: string) {
   return { content: [{ type: "text" as const, text: message }], isError: true };
+}
+
+/** Taxonomie des échecs d'analyse — trois messages pour trois responsables.
+ *  Exportée pour être testable sans monter un McpServer.
+ *  - NeedsInputError : le fichier est lisible, il manque une info que
+ *    L'APPELANT peut fournir → question structurée (structuredContent.needs).
+ *  - EngineError : échec CÔTÉ K-Φ (5xx/réseau, déjà re-tenté une fois) →
+ *    ne JAMAIS accuser le fichier de l'utilisateur.
+ *  - ParseError : le FICHIER n'est pas un export comptable lisible →
+ *    conseils de format (l'ancien message, enfin correctement ciblé). */
+export function describeAnalysisError(e: unknown, analysisId: string):
+  { text: string; needs?: string[] } {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (e instanceof NeedsInputError)
+    return {
+      text: `${msg}\n\nRelancez kphi_analyze_ledger avec le même contenu en ajoutant ` +
+            `le(s) paramètre(s) : ${e.needs.join(", ")}.`,
+      needs: e.needs,
+    };
+  if (e instanceof EngineError)
+    return {
+      text: `Erreur côté service K-Φ (${msg}) — votre fichier n'est pas en cause : ` +
+            `l'analyse a échoué avant le calcul, malgré une nouvelle tentative automatique. ` +
+            `Réessayez dans quelques instants (id ${analysisId}).`,
+    };
+  if (e instanceof ParseError)
+    return {
+      text: `Impossible de lire ce fichier : ${msg}. Vérifiez qu'il s'agit d'un export ` +
+            `comptable (grand livre, balance, FEC) et précisez format_hint si possible.`,
+    };
+  return { text: `Analyse impossible : ${msg} (id ${analysisId}).` };
 }

@@ -21,6 +21,15 @@ export interface KphiHttpEngineConfig {
   baseUrl: string;          // https://k-phi.com (ou l'URL Render du moteur)
   serviceSecret: string;    // = KPHI_SANDBOX_SECRET côté moteur
   timeoutMs?: number;       // défaut 60 s
+  retryDelayMs?: number;    // défaut 1 500 ms (injectable pour les tests)
+}
+
+/** Échec CÔTÉ MOTEUR (5xx, réseau) — à ne jamais présenter comme un problème
+ *  de fichier. Historique : un 500 du wrapper générique du moteur ressortait
+ *  en « Vérifiez qu'il s'agit d'un export comptable » — double blanchiment
+ *  d'erreur (le wrapper efface la cause, le MCP accuse le fichier). */
+export class EngineError extends Error {
+  constructor(msg: string, public status?: number) { super(msg); this.name = "EngineError"; }
 }
 
 export class KphiHttpEngine implements AnalysisEngine {
@@ -79,7 +88,7 @@ export class KphiHttpEngine implements AnalysisEngine {
       headers: { "X-Sandbox-Secret": this.cfg.serviceSecret },
     });
     const j = await r.json() as { tenantId?: string; name?: string; token?: string; error?: string };
-    if (!r.ok || !j.token || !j.tenantId) throw new Error(`sandbox tenant: ${r.status} ${j.error ?? ""}`);
+    if (!r.ok || !j.token || !j.tenantId) throw new EngineError(`sandbox tenant: ${r.status} ${j.error ?? ""}`.trim(), r.status);
     return { tenantId: j.tenantId, name: j.name ?? "", token: j.token };
   }
 
@@ -116,7 +125,7 @@ export class KphiHttpEngine implements AnalysisEngine {
        validation « une version = une période » du moteur ne peut pas
        rejeter le lot. */
     const fy = Number(ver.slice(0, 4)), pn = Number(ver.slice(5, 7));
-    const r = await this.fetch("/api/gl/import", {
+    const r = await this.fetchRetry("/api/gl/import", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -124,20 +133,42 @@ export class KphiHttpEngine implements AnalysisEngine {
         ...(fy >= 1900 && pn >= 1 ? { fiscal_year: fy, period_num: pn } : {}),
         entries,
       }),
-    });
+    }, `import ${ver}`);
     if (!r.ok) {
       const j = await r.json().catch(() => ({})) as { error?: string };
-      throw new Error(`import ${ver}: ${r.status} ${j.error ?? ""}`);
+      throw new EngineError(`import ${ver}: ${r.status} ${j.error ?? ""}`, r.status);
     }
   }
 
   private async statements(token: string, scope: { ver?: string; asOf?: string }): Promise<StatementsPayload> {
     const qs = new URLSearchParams();
     if (scope.asOf) qs.set("asOf", scope.asOf); else if (scope.ver) qs.set("ver", scope.ver);
-    const r = await this.fetch(`/api/statements?${qs.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+    const r = await this.fetchRetry(`/api/statements?${qs.toString()}`, { headers: { Authorization: `Bearer ${token}` } }, "statements");
     const j = await r.json() as StatementsPayload & { error?: string; message?: string };
-    if (!r.ok) throw new Error(`statements: ${r.status} ${j.error ?? ""} ${j.message ?? ""}`);
+    if (!r.ok) throw new EngineError(`statements: ${r.status} ${j.error ?? ""} ${j.message ?? ""}`.trim(), r.status);
     return j;
+  }
+
+  /** Un POST /api/gl/import sur un tenant sandbox neuf est idempotent
+   *  (mode replace, tenant jeté si l'analyse échoue) : un 5xx transitoire —
+   *  course d'initialisation de schéma, pool — mérite UNE nouvelle tentative
+   *  automatique avant de remonter. C'est le « try again » que l'utilisateur
+   *  tapait à la main. */
+  private async fetchRetry(path: string, init: RequestInit, label: string): Promise<Response> {
+    let last: Error | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, this.cfg.retryDelayMs ?? 1500));
+      try {
+        const r = await this.fetch(path, init);
+        if (r.status < 500) return r;
+        const j = await r.clone().json().catch(() => ({})) as { error?: string };
+        last = new EngineError(`${label}: ${r.status} ${j.error ?? ""}`.trim(), r.status);
+      } catch (e) {
+        if (e instanceof EngineError) { last = e; continue; }
+        last = new EngineError(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    throw last;
   }
 
   private async fetch(path: string, init: RequestInit): Promise<Response> {

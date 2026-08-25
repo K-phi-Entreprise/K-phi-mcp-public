@@ -54,6 +54,13 @@ export interface ParseResult {
   period_to: string;
   dropped: number;         // lignes ignorées (vides, en-tête, non parsables)
   warnings: string[];
+  /** Genre structurel de l'export — détecté sur la FORME, pas sur l'en-tête :
+   *  un grand livre a plusieurs lignes par (compte, période) et porte des
+   *  références de pièces/tiers ; une balance a ~1 ligne par (compte, période)
+   *  et n'en porte pas. Une balance équilibrée passait pour un grand livre
+   *  d'un mois : DSO 9,5 j, DSCR −20 présenté en breach. Le genre borne les
+   *  KPI calculables (voir engine-http.toAnalysisResult). */
+  genre: "ledger" | "trial_balance" | "unknown";
   /** compte → intitulé stable. Sert deux usages : header_text par écriture
    *  (libellés d'états immédiats) et, en Phase 2, l'amorçage de cfg.coa côté
    *  moteur (source n°1 des libellés + meilleure entrée pour classifyAcct).
@@ -436,6 +443,21 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
 
 /* ------------------------------------------------------------------ */
 
+function detectGenre(entries: LedgerEntry[]): "ledger" | "trial_balance" | "unknown" {
+  if (!entries.length) return "unknown";
+  const pairs = new Set<string>();
+  let withRef = 0;
+  for (const e of entries) {
+    pairs.add(e.acct + "\u00a7" + e.period);
+    if (e.ref || e.tp) withRef++;
+  }
+  const rpp = entries.length / pairs.size;      /* lignes par (compte, période) */
+  const refFrac = withRef / entries.length;     /* part des lignes référencées  */
+  if (rpp <= 1.6 && refFrac < 0.2) return "trial_balance";
+  if (rpp >= 2.5 || refFrac >= 0.5) return "ledger";
+  return "unknown";
+}
+
 function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
                 warnings: string[], ccys: Map<string, number>,
                 coaDict: Record<string, string> = {}): ParseResult {
@@ -450,7 +472,7 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
     format, entries,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
-    dropped, warnings, coa_dict: coaDict,
+    dropped, warnings, genre: detectGenre(entries), coa_dict: coaDict,
   };
 }
 

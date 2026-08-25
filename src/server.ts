@@ -16,6 +16,7 @@ import { MockEngine, type AnalysisEngine } from "./engine.js";
 import { KphiHttpEngine } from "./engine-http.js";
 import { MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
+import { createUploadStorage } from "./upload-storage.js";
 import { UsageCounter } from "./usage.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -47,7 +48,10 @@ const STATS_TOKEN = process.env.STATS_TOKEN;
 const KPHI_ENGINE_URL = process.env.KPHI_ENGINE_URL;        // ex. https://k-phi.com
 const KPHI_SANDBOX_SECRET = process.env.KPHI_SANDBOX_SECRET; // = même valeur côté moteur
 const engine: AnalysisEngine = (KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET)
-  ? new KphiHttpEngine({ baseUrl: KPHI_ENGINE_URL, serviceSecret: KPHI_SANDBOX_SECRET })
+  ? new KphiHttpEngine({
+      baseUrl: KPHI_ENGINE_URL, serviceSecret: KPHI_SANDBOX_SECRET,
+      /* branché plus bas une fois le stockage construit — voir _wireStorage */
+    })
   : new MockEngine();
 console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPHI_SANDBOX_SECRET non définis)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
 
@@ -59,10 +63,25 @@ console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPH
 // sa simple présence ré-active la route (valeur "mock" possible pour tester
 // le routage avec MockEngine.analyzeFromStorage).
 const KPHI_UPLOAD_STORAGE = process.env.KPHI_UPLOAD_STORAGE;
-const UPLOAD_ENABLED = !!KPHI_UPLOAD_STORAGE;
-console.log(`upload volumineux: ${UPLOAD_ENABLED
-  ? "activé (" + KPHI_UPLOAD_STORAGE + ")"
-  : "désactivé (KPHI_UPLOAD_STORAGE non défini) — kphi_request_upload refuse, PUT /upload → 501"}`);
+const uploadSetup = createUploadStorage(KPHI_UPLOAD_STORAGE);
+const UPLOAD_ENABLED = uploadSetup.kind !== "disabled";
+console.log(`upload volumineux: ${UPLOAD_ENABLED ? "activé — " + uploadSetup.note
+  : uploadSetup.note + " — kphi_request_upload refuse, PUT /upload → 501"}`);
+/* Balayage TTL : les uploads sont consommés en secondes ; tout fichier de
+   plus de 24 h est un déchet (analyse en erreur jamais reprise). unref() :
+   le timer n'empêche pas le process de sortir. */
+if (uploadSetup.storage) {
+  const sweepEvery = setInterval(() => {
+    void uploadSetup.storage!.sweep(24 * 3600 * 1000)
+      .then(n => { if (n > 0) console.log(`upload sweep: ${n} fichier(s) purgé(s)`); });
+  }, 3600 * 1000);
+  sweepEvery.unref();
+}
+/* Le moteur HTTP lit les uploads via le même backend que la route PUT.
+   (Affectation ici : uploadSetup est construit après l'instance moteur.) */
+if (engine instanceof KphiHttpEngine && uploadSetup.storage) {
+  engine.cfg.storageRead = async (key: string) => (await uploadSetup.storage!.read(key)).toString("utf8");
+}
 const store: Store = new MemoryStore();
 const limiter = new RateLimiter({
   analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
@@ -140,16 +159,33 @@ app.put("/upload/:token",
   if (!analysisId) { res.status(410).json({ error: "Lien expiré ou invalide." }); return; }
   const rec = await store.get(analysisId);
   if (!rec) { res.status(404).json({ error: "Analyse introuvable." }); return; }
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    res.status(400).json({ error: "Corps vide : envoyez le fichier en corps de requête (PUT binaire)." }); return;
+  }
 
-  // TODO : antivirus, persistance objet, chiffrement au repos, TTL 24 h
   const storageKey = `uploads/${analysisId}`;
+  /* PERSISTER AVANT de répondre 202 : la version précédente répondait 202
+     puis jetait req.body — un « pending » qui ne pouvait jamais aboutir.
+     Si l'écriture échoue, l'appelant le sait tout de suite (500), le token
+     est déjà consommé mais kphi_request_upload peut en réémettre un. */
+  if (uploadSetup.storage) {
+    try { await uploadSetup.storage.save(storageKey, req.body); }
+    catch (e) {
+      console.error("upload save failed", e);
+      res.status(500).json({ error: "Échec d'écriture du fichier — réessayez avec un nouveau lien." });
+      return;
+    }
+  }
   await store.update(analysisId, { storage_key: storageKey });
   res.status(202).json({ analysis_id: analysisId, status: "pending" });
 
-  // Analyse asynchrone
+  // Analyse asynchrone : le résultat (ou l'erreur, via la taxonomie) est
+  // relevé par kphi_get_analysis. Fichier supprimé sur succès ; conservé
+  // sur erreur jusqu'au sweep 24 h (diagnostic).
   try {
     const result = await engine.analyzeFromStorage(storageKey, rec.opts);
     await store.update(analysisId, { status: "ready", result });
+    if (uploadSetup.storage) await uploadSetup.storage.remove(storageKey).catch(() => {});
   } catch (e) {
     await store.update(analysisId, { status: "error", error: e instanceof Error ? e.message : String(e) });
   }

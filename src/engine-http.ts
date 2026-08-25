@@ -22,6 +22,21 @@ export interface KphiHttpEngineConfig {
   serviceSecret: string;    // = KPHI_SANDBOX_SECRET côté moteur
   timeoutMs?: number;       // défaut 60 s
   retryDelayMs?: number;    // défaut 1 500 ms (injectable pour les tests)
+  /** Lecture du stockage d'upload (voir upload-storage.ts). Sans lui,
+   *  analyzeFromStorage refuse — jamais de fichier accepté puis perdu. */
+  storageRead?: (key: string) => Promise<string>;
+  /** Cap d'écritures de l'analyse anonyme. DOIT refléter SANDBOX_MAX_ENTRIES
+   *  côté moteur (200 000 par défaut) : mieux vaut un refus clair ici qu'un
+   *  429 « Entry limit exceeded » à mi-import, présenté comme une erreur
+   *  moteur par la taxonomie. */
+  maxSandboxEntries?: number;
+}
+
+/** Limite PRODUIT (pas un fichier illisible, pas une panne moteur) : la
+ *  taxonomie la présente telle quelle, sans le préfixe « Impossible de
+ *  lire ce fichier ». */
+export class LimitError extends ParseError {
+  constructor(msg: string) { super(msg); this.name = "LimitError"; }
 }
 
 /** Échec CÔTÉ MOTEUR (5xx, réseau) — à ne jamais présenter comme un problème
@@ -35,7 +50,7 @@ export class EngineError extends Error {
 export class KphiHttpEngine implements AnalysisEngine {
   private timeout: number;
 
-  constructor(private cfg: KphiHttpEngineConfig) {
+  constructor(public cfg: KphiHttpEngineConfig) {
     if (!cfg.baseUrl || !cfg.serviceSecret) throw new Error("KphiHttpEngine: baseUrl et serviceSecret requis");
     this.timeout = cfg.timeoutMs ?? 60_000;
   }
@@ -45,6 +60,12 @@ export class KphiHttpEngine implements AnalysisEngine {
        alors les fichiers sans colonne date au mois courant. Il alimente
        maintenant l'échelle de résolution des dates (voir parse-ledger.ts). */
     const parsed = parseLedger(input.content, undefined, { periodEnd: input.period_end });
+    const cap = this.cfg.maxSandboxEntries ?? Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000);
+    if (parsed.entries.length > cap)
+      throw new LimitError(
+        `L'analyse anonyme est limitée à ${cap.toLocaleString("fr-FR")} écritures ; ce fichier en contient ` +
+        `${parsed.entries.length.toLocaleString("fr-FR")}. Agrégez l'export (ex. balance mensuelle par compte, ` +
+        `ou un exercice à la fois), ou créez un compte K-Φ pour l'import complet.`);
     const sb = await this.createSandbox();
 
     // Modèle K-Phi : UNE version = UN mois, nommée YYYY-MM. C'est ce que fait
@@ -94,9 +115,11 @@ export class KphiHttpEngine implements AnalysisEngine {
     return result;
   }
 
-  async analyzeFromStorage(_storageKey: string, _opts: Omit<AnalyzeInput, "content">): Promise<AnalysisResult> {
-    // TODO : lire le fichier depuis l'object storage puis appeler analyze().
-    throw new Error("analyzeFromStorage: object storage non branché");
+  async analyzeFromStorage(storageKey: string, opts: Omit<AnalyzeInput, "content">): Promise<AnalysisResult> {
+    if (!this.cfg.storageRead)
+      throw new EngineError("analyzeFromStorage: stockage objet non configuré sur ce déploiement");
+    const content = await this.cfg.storageRead(storageKey);
+    return this.analyze({ content, ...opts } as AnalyzeInput);
   }
 
   /* ----------------------------------------------------------------- */

@@ -6,7 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { AnalysisEngine, AnalysisResult } from "./engine.js";
 import { ParseError, NeedsInputError } from "./parse-ledger.js";
-import { EngineError } from "./engine-http.js";
+import { EngineError, LimitError } from "./engine-http.js";
 import type { Store } from "./store.js";
 import type { RateLimiter, RequestContext } from "./ratelimit.js";
 import type { UsageCounter } from "./usage.js";
@@ -149,8 +149,10 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     title: "Lien d'upload sécurisé (gros fichiers)",
     description: deps.uploadEnabled
       ? "Génère un lien d'upload sécurisé et temporaire (15 min) pour un export de grand livre volumineux " +
-        "(de 2 Mo à 500 Mo). Le fichier est envoyé directement à K-Φ, jamais à l'assistant. Renvoie un " +
-        "analysis_id à passer ensuite à kphi_get_analysis une fois le dépôt effectué."
+        "(de 2 Mo à 500 Mo, et jusqu'à " +
+        Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000).toLocaleString("fr-FR") +
+        " écritures pour l'analyse anonyme). Le fichier est envoyé directement à K-Φ, jamais à " +
+        "l'assistant. Renvoie un analysis_id à passer ensuite à kphi_get_analysis une fois le dépôt effectué."
       : "INDISPONIBLE sur ce déploiement : l'upload volumineux n'est pas encore branché. N'appelez cet " +
         "outil que si l'utilisateur insiste ; il répond par un message d'indisponibilité. Utilisez " +
         "kphi_analyze_ledger (≤ 2 Mo), au besoin sur un export agrégé.",
@@ -253,6 +255,8 @@ export function describeAnalysisError(e: unknown, analysisId: string):
             `le(s) paramètre(s) : ${e.needs.join(", ")}.`,
       needs: e.needs,
     };
+  if (e instanceof LimitError)
+    return { text: msg };
   if (e instanceof EngineError)
     return {
       text: `Erreur côté service K-Φ (${msg}) — votre fichier n'est pas en cause : ` +

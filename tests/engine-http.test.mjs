@@ -131,3 +131,72 @@ test("moteur sans le endpoint coa (404) : l'analyse aboutit quand même", async 
   const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
   assert.equal(r.detected.entries, 4);
 });
+
+/* ── Upload storage (Phase 2, PR 5) ──────────────────────────────── */
+import { FsUploadStorage, createUploadStorage, safeName } from "../dist/upload-storage.js";
+import { LimitError } from "../dist/engine-http.js";
+import { mkdtemp, writeFile as wf, utimes, readdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+test("stockage fichier : save/read/remove, clés assainies (pas de traversal)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kphi-t-"));
+  const st = new FsUploadStorage(dir);
+  await st.save("uploads/an_x1", Buffer.from("a,b\n1,2\n"));
+  assert.equal((await st.read("uploads/an_x1")).toString(), "a,b\n1,2\n");
+  assert.equal(safeName("../../etc/passwd"), ".._.._etc_passwd");
+  await st.save("../../evil", Buffer.from("x"));
+  const names = await readdir(dir);
+  assert.ok(names.every(n => !n.includes("/") && !n.includes("..") || n.startsWith(".._")), JSON.stringify(names));
+  await st.remove("uploads/an_x1");
+  await assert.rejects(st.read("uploads/an_x1"));
+});
+
+test("sweep TTL : purge les vieux fichiers, épargne les récents", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kphi-t-"));
+  const st = new FsUploadStorage(dir);
+  await st.save("old", Buffer.from("o"));
+  await st.save("fresh", Buffer.from("f"));
+  const past = new Date(Date.now() - 48 * 3600 * 1000);
+  await utimes(join(dir, "old"), past, past);
+  const purged = await st.sweep(24 * 3600 * 1000);
+  assert.equal(purged, 1);
+  assert.equal((await st.read("fresh")).toString(), "f");
+});
+
+test("createUploadStorage : tmp actif, valeur inconnue → désactivé (jamais accepter sans savoir relire)", () => {
+  assert.equal(createUploadStorage(undefined).kind, "disabled");
+  assert.equal(createUploadStorage("mock").kind, "mock");
+  assert.equal(createUploadStorage("tmp").kind, "tmp");
+  assert.equal(createUploadStorage("s3://bucket").kind, "disabled");
+});
+
+test("analyzeFromStorage : lit le fichier via storageRead et aboutit à une analyse complète", async () => {
+  mockEngine();
+  const dir = await mkdtemp(join(tmpdir(), "kphi-t-"));
+  const st = new FsUploadStorage(dir);
+  await st.save("uploads/an_up1", Buffer.from(LEDGER));
+  const e = new KphiHttpEngine({
+    baseUrl: "https://engine.test", serviceSecret: "s", retryDelayMs: 5,
+    storageRead: async (k) => (await st.read(k)).toString("utf8"),
+  });
+  const r = await e.analyzeFromStorage("uploads/an_up1", { format_hint: "generic", locale: "fr" });
+  assert.equal(r.detected.entries, 4);
+});
+
+test("analyzeFromStorage sans lecteur : EngineError explicite, jamais un fichier perdu en silence", async () => {
+  await assert.rejects(
+    engine().analyzeFromStorage("uploads/x", { format_hint: "generic", locale: "fr" }),
+    (e) => e instanceof EngineError && /non configuré/.test(e.message));
+});
+
+test("cap d'écritures : LimitError claire, sans préfixe « Impossible de lire »", async () => {
+  mockEngine();
+  const e = new KphiHttpEngine({ baseUrl: "https://engine.test", serviceSecret: "s", retryDelayMs: 5, maxSandboxEntries: 2 });
+  await assert.rejects(
+    e.analyze({ content: LEDGER, format_hint: "generic", locale: "fr" }),
+    (err) => err instanceof LimitError && /limitée à 2/.test(err.message));
+  const d = describeAnalysisError(new LimitError("L'analyse anonyme est limitée à 2 écritures."), "an_9");
+  assert.doesNotMatch(d.text, /Impossible de lire/);
+  assert.match(d.text, /limitée/);
+});

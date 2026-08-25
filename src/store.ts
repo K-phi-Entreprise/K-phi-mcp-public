@@ -14,6 +14,10 @@ export interface StoredAnalysis {
   created_at: number;
   session_id: string;
   source: "inline" | "upload";
+  /** utm_source logique (ex. "mcp") — remplace l'ancienne query string sur
+   *  open_in_kphi_url ; conservé côté serveur pour les stats d'attribution
+   *  sans allonger le lien affiché à l'utilisateur. */
+  attribution: string;
   opts: Omit<AnalyzeInput, "content">;
   storage_key?: string;
   result?: AnalysisResult;

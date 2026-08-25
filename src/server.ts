@@ -138,13 +138,16 @@ app.put("/upload/:token", express.raw({ type: "*/*", limit: "500mb" }), async (r
 app.get("/a/:id", async (req, res) => {
   usage.record("conversion_click");
   const q = new URLSearchParams(req.query as Record<string, string>);
-  // Le tenant sandbox qui héberge l'analyse : c'est lui que la plateforme doit
-  // rattacher au compte créé par magic link. Absent avec le mock.
   const rec = await store.get(req.params.id);
   const sb = rec?.result?.sandbox;
   // Moteur réel : lien signé qui ouvre le tenant en lecture seule dans l'app.
+  // Jamais d'UTM ici — c'est un JWT, pas une query string, donc rien à ajouter.
   if (sb?.open_url) { res.redirect(302, sb.open_url); return; }
   // Repli (mock, ou open-link en échec) : la page /a/:id côté plateforme.
+  // L'attribution (deps.source, ex. "mcp") vit dans le store depuis la création
+  // de l'analyse, pas dans l'URL affichée à l'utilisateur (voir tools.ts) —
+  // elle n'apparaît que sur CETTE redirection serveur, invisible pour lui.
+  if (rec) q.set("utm_source", rec.attribution);
   if (sb) { q.set("tenant", sb.tenant_id); q.set("ver", sb.ver); }
   res.redirect(302, `${PUBLIC_BASE_URL}/a/${req.params.id}?${q.toString()}`);
 });

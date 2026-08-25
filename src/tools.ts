@@ -31,13 +31,14 @@ const covenant = z.object({
 });
 
 function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
-  const utm = `utm_source=${deps.source}&utm_medium=assistant`;
   const payload = {
     ...r,
     analysis_id: analysisId,
     // Passe par /a/:id sur CE serveur (pas k-phi.com directement) pour que le clic
-    // soit compté avant la redirection — voir server.ts.
-    open_in_kphi_url: `${deps.ingestBaseUrl}/a/${analysisId}?${utm}`,
+    // soit compté avant la redirection — voir server.ts. Pas de query string ici :
+    // la source (deps.source) est déjà encodée dans l'id via store.create ; server.ts
+    // la lit depuis l'enregistrement, pas depuis l'URL, donc le lien reste court.
+    open_in_kphi_url: `${deps.ingestBaseUrl}/a/${analysisId}`,
     report_share_url: `${deps.publicBaseUrl}/r/${analysisId}`,
   };
   const breaches = r.kpis.filter(k => k.status === "breach").length;
@@ -48,7 +49,10 @@ function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
     (r.alerts.length ? `\nAlertes :\n${r.alerts.map(a => `- ${a}`).join("\n")}\n` : "") +
     (breaches ? `\n${breaches} covenant(s) en breach.\n` : "") +
     `\nKPI :\n${r.kpis.map(k => `- ${k.label} : ${fmt(k.value, k.unit)}${k.status ? ` [${k.status}]` : ""}`).join("\n")}\n` +
-    `\nVoir cette analyse dans K-Φ (bilan, P&L, flux de trésorerie, 30 KPI) : ${payload.open_in_kphi_url}\n` +
+    // Markdown [texte](url) : la plupart des clients MCP (dont claude.ai) rendent un lien
+    // cliquable court ; un client qui ne le fait pas affiche quand même une URL courte,
+    // grâce au raccourcissement ci-dessus. Jamais l'URL brute seule dans le texte.
+    `\n[Voir cette analyse dans K-Φ](${payload.open_in_kphi_url}) — bilan, P&L, flux de trésorerie, 30 KPI.\n` +
     `Lien personnel, valable 24 h, sans compte. Pour conserver vos données au-delà (30 jours gratuits), confirmez votre email depuis la page.`;
   return {
     content: [{ type: "text" as const, text }],
@@ -102,7 +106,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }
 
     const rec = await deps.store.create({
-      status: "pending", session_id: ctx.sessionId, source: "inline",
+      status: "pending", session_id: ctx.sessionId, source: "inline", attribution: deps.source,
       opts: { format_hint: args.format_hint, period_end: args.period_end, covenants: args.covenants, locale: args.locale },
     });
     try {
@@ -137,7 +141,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
     if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }
     const rec = await deps.store.create({
-      status: "pending", session_id: ctx.sessionId, source: "upload", opts: { ...args },
+      status: "pending", session_id: ctx.sessionId, source: "upload", attribution: deps.source, opts: { ...args },
     });
     const token = await deps.store.issueUploadToken(rec.id, UPLOAD_TTL_MS);
     const upload_url = `${deps.ingestBaseUrl}/upload/${token}`;

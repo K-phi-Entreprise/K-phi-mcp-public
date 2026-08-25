@@ -13,6 +13,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { registerTools } from "./tools.js";
 import { MockEngine, type AnalysisEngine } from "./engine.js";
+import { KphiHttpEngine } from "./engine-http.js";
 import { MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
 import { UsageCounter } from "./usage.js";
@@ -27,8 +28,14 @@ const UTM_SOURCE = process.env.UTM_SOURCE ?? "mcp";
 // vite, mais à définir avant que le lien /stats circule au-delà de vous.
 const STATS_TOKEN = process.env.STATS_TOKEN;
 
-// ---- Dépendances (à remplacer par les implémentations réelles) ----
-const engine: AnalysisEngine = new MockEngine();
+// ---- Moteur : réel si configuré, mock sinon (le mock reste le défaut tant que
+// l'endpoint sandbox n'est pas déployé côté moteur — rien ne casse entre-temps).
+const KPHI_ENGINE_URL = process.env.KPHI_ENGINE_URL;        // ex. https://k-phi.com
+const KPHI_SANDBOX_SECRET = process.env.KPHI_SANDBOX_SECRET; // = même valeur côté moteur
+const engine: AnalysisEngine = (KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET)
+  ? new KphiHttpEngine({ baseUrl: KPHI_ENGINE_URL, serviceSecret: KPHI_SANDBOX_SECRET })
+  : new MockEngine();
+console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPHI_SANDBOX_SECRET non définis)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
 const store: Store = new MemoryStore();
 const limiter = new RateLimiter({ analysesPerIpPerDay: 10, analysesPerSessionPerDay: 5 });
 const usage = new UsageCounter();

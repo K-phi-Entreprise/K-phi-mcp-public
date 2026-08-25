@@ -44,6 +44,8 @@ export interface AnalysisResult {
     currency: string;
     period: string;
     entries: number;
+    /** "ledger" | "trial_balance" | "unknown" — borne les KPI calculables. */
+    genre?: string;
   };
   kpis: Kpi[];
   alerts: string[];

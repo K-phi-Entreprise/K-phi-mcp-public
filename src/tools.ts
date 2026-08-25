@@ -50,7 +50,7 @@ function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
   const breaches = r.kpis.filter(k => k.status === "breach").length;
   const text =
     `${r.summary_markdown}\n\n` +
-    `Format détecté : ${r.detected.format} (${r.detected.chart_of_accounts}, ${r.detected.currency}), ` +
+    `Format détecté : ${r.detected.format}${({ ledger: " — grand livre", trial_balance: " — balance", unknown: "" } as Record<string, string>)[r.detected.genre ?? "unknown"] ?? ""} (${r.detected.chart_of_accounts}, ${r.detected.currency}), ` +
     `${r.detected.entries} écritures, période ${r.detected.period}.\n` +
     (r.alerts.length ? `\nAlertes :\n${r.alerts.map(a => `- ${a}`).join("\n")}\n` : "") +
     (breaches ? `\n${breaches} covenant(s) en breach.\n` : "") +

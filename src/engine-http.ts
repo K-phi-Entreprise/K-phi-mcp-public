@@ -315,6 +315,24 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   }
   if (nMonths > 1) notes.push(`Exercice : P&L sommé sur ${nMonths} mois (${parsed.period_from} → ${parsed.period_to}), bilan au ${parsed.period_to}.`);
 
+  /* ── Garde de genre : une balance ne porte pas le détail des écritures ──
+     Placée AVANT les covenants : un covenant DSCR sur une balance doit
+     répondre « non calculable sur cet export », pas breach. Le retrait de
+     dscr supprime aussi, mécaniquement, la ligne de vigilance DSCR de la
+     synthèse. Cas fondateur : une balance annuelle équilibrée analysée
+     comme un grand livre d'un mois → DSCR −20,4 annoncé sous seuil. */
+  if (parsed.genre === "trial_balance") {
+    const iDscr = kpis.findIndex(k => k.id === "dscr");
+    if (iDscr >= 0) {
+      kpis.splice(iDscr, 1);
+      alerts.push("DSCR non calculé : l'export est une balance (soldes par compte et période), " +
+        "pas un grand livre — ce ratio exige le détail des écritures (service de la dette, flux).");
+    }
+    if (kpis.some(k => ["dso", "dpo", "dio", "ccc"].includes(k.id)))
+      notes.push("DSO/DPO/DIO/CCC calculés sur les soldes de la balance (pas de détail facture) : " +
+        "des ordres de grandeur, pas des délais réels de règlement.");
+  }
+
   for (const c of input.covenants ?? []) {
     const key = c.name.toLowerCase().replace(/[^a-z_]/g, "");
     const k = kpis.find(x => x.id === key || x.label.toLowerCase() === c.name.toLowerCase());
@@ -328,7 +346,8 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
 
   return {
     detected: { format: parsed.format, chart_of_accounts: "auto", currency: parsed.currency,
-                period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length },
+                period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length,
+                genre: parsed.genre },
     kpis, alerts, notes,
     summary_markdown: buildSummary(kpis, parsed, alerts),
   };

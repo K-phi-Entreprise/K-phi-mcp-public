@@ -17,7 +17,10 @@ export interface Covenant {
 }
 
 export interface AnalyzeInput {
-  content: string;            // CSV/TSV brut
+  content: string;
+  /** Plan de mapping fourni par l'appelant { champ: en-tête } + amount_mode.
+   *  Prime sur l'inférence, champ par champ. */
+  column_map?: Record<string, string>;            // CSV/TSV brut
   format_hint: FormatHint;
   period_end?: string;
   covenants?: Covenant[];
@@ -46,6 +49,12 @@ export interface AnalysisResult {
     entries: number;
     /** "ledger" | "trial_balance" | "unknown" — borne les KPI calculables. */
     genre?: string;
+    /** Plan de mapping final { champ: en-tête } — à inspecter, et à corriger
+     *  via column_map lors d'un rappel. */
+    column_map?: Record<string, string>;
+    unmapped_headers?: string[];
+    name_source?: string;
+    overrides_applied?: number;
   };
   kpis: Kpi[];
   alerts: string[];

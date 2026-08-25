@@ -43,6 +43,13 @@ export interface LedgerEntry {
 export interface ParseOpts {
   /** Date de clôture YYYY-MM-DD — dernier échelon de résolution des dates. */
   periodEnd?: string;
+  /** Plan de mapping fourni par l'APPELANT : { champ: en-tête }. Le modèle
+   *  qui appelle l'outil lit n'importe quel en-tête dans n'importe quelle
+   *  langue — c'est la voie agnostique quand l'inférence se trompe. Les
+   *  champs fournis PRIMENT sur l'inférence ; les autres restent inférés.
+   *  amount_mode force le sens du montant unique (signed_inv : positif =
+   *  crédit, convention PCG/Cegid — indétectable sans classification). */
+  columnMap?: Partial<Record<keyof typeof SYN, string>> & { amount_mode?: "dual" | "signed" | "signed_inv" | "single" };
 }
 
 export interface ParseResult {
@@ -54,6 +61,16 @@ export interface ParseResult {
   period_to: string;
   dropped: number;         // lignes ignorées (vides, en-tête, non parsables)
   warnings: string[];
+  /** Plan de mapping FINAL { champ: en-tête }, overrides inclus — renvoyé
+   *  pour être inspecté et corrigé (rappel avec column_map). */
+  column_map: Record<string, string>;
+  /** En-têtes non mappés (hors colonnes-pièges) : matière première d'une
+   *  correction par l'appelant. */
+  unmapped_headers: string[];
+  /** Provenance des intitulés de compte : mapped | adopted | demoted | none. */
+  name_source: "mapped" | "adopted" | "demoted" | "none";
+  /** Nombre de champs forcés par column_map. */
+  overrides_applied: number;
   /** Genre structurel de l'export — détecté sur la FORME, pas sur l'en-tête :
    *  un grand livre a plusieurs lignes par (compte, période) et porte des
    *  références de pièces/tiers ; une balance a ~1 ligne par (compte, période)
@@ -379,6 +396,23 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     warnings.push(`Colonnes ignorées (pièges connus : soldes cumulés, contreparties, montants TTC/taxe) : ${[...skip].map(i => header[i]).join(", ")}.`);
 
   const m = mapHeaders(header, skip);
+  /* ── Overrides de l'appelant : priment sur l'inférence ── */
+  let overridesApplied = 0;
+  let forcedMode: "dual" | "signed" | "signed_inv" | "single" | undefined;
+  if (opts.columnMap) {
+    for (const [field, hdr] of Object.entries(opts.columnMap)) {
+      if (field === "amount_mode") { forcedMode = hdr as typeof forcedMode; continue; }
+      if (!(field in SYN)) { warnings.push(`column_map : champ inconnu « ${field} » ignoré.`); continue; }
+      const idx = normH.indexOf(normHeader(String(hdr)));
+      if (idx < 0) { warnings.push(`column_map : en-tête « ${hdr} » introuvable pour « ${field} ».`); continue; }
+      /* libère l'ancienne affectation de cette colonne, le cas échéant */
+      for (const k of Object.keys(m) as (keyof typeof SYN)[]) if (m[k] === idx && k !== field) delete m[k];
+      (m as Record<string, number>)[field] = idx;
+      skip.delete(idx);   /* un override explicite lève même un skip */
+      overridesApplied++;
+    }
+    if (overridesApplied > 0) warnings.push(`${overridesApplied} champ(s) forcés par column_map.`);
+  }
   /* D365 : ACCOUNTDISPLAYVALUE en dernier recours seulement. */
   if (m.acct == null && m.acct_display != null) {
     m.acct = m.acct_display;
@@ -409,9 +443,17 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const entries: LedgerEntry[] = [];
   let dropped = 0;
   const ccys = new Map<string, number>();
-  const dualMode = m.dr != null && m.cr != null;
-  const indicatorMode = !dualMode && m.amount != null && m.dc_ind != null;
-  const signedMode = !dualMode && !indicatorMode && m.dr == null && m.cr == null;
+  let dualMode = m.dr != null && m.cr != null;
+  let indicatorMode = !dualMode && m.amount != null && m.dc_ind != null;
+  let signedMode = !dualMode && !indicatorMode && m.dr == null && m.cr == null;
+  let signedInv = false;
+  if (forcedMode === "dual") { dualMode = true; indicatorMode = signedMode = false; }
+  else if (forcedMode === "single") { indicatorMode = m.amount != null && m.dc_ind != null; dualMode = false; signedMode = !indicatorMode; }
+  else if (forcedMode === "signed" || forcedMode === "signed_inv") {
+    dualMode = indicatorMode = false; signedMode = m.amount != null;
+    signedInv = forcedMode === "signed_inv";
+    if (signedInv) warnings.push("amount_mode signed_inv : positif → crédit (convention PCG/Cegid).");
+  }
   if (indicatorMode)
     warnings.push(`Montant unique + indicateur D/C (« ${header[m.dc_ind!]} ») : S/D/DR/SOLL → débit, H/C/CR/HABEN → crédit, montants pris en valeur absolue (convention SAP/Sage X3).`);
   else if (signedMode) warnings.push("Montant signé détecté : positif → débit, négatif → crédit.");
@@ -466,8 +508,9 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
       else if (/^(H|C|CR|CREDIT|HABEN)$/.test(ind)) cr = a;
       else { indUnknown++; dropped++; continue; }
     } else if (signedMode) {
-      const a = num(c[m.amount!]);
+      let a = num(c[m.amount!]);
       if (isNaN(a) || a === 0) { dropped++; continue; }
+      if (signedInv) a = -a;
       if (a > 0) dr = a; else cr = -a;
     } else {
       dr = m.dr != null ? num(c[m.dr]) : NaN;
@@ -541,9 +584,23 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   }
   const coaDict = winner ? winner.dict() : {};
   for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
+  const nameSource: ParseResult["name_source"] =
+    winner ? (winner.mapped ? "mapped" : "adopted") : (mappedCand ? "demoted" : "none");
 
-  return finish("csv", entries, dropped, warnings, ccys, coaDict,
+  const columnMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(m)) if (v != null && k !== "acct_display") columnMap[k] = header[v as number];
+  if (winner && !winner.mapped) columnMap["acct_name"] = header[winner.idx];
+  const mappedIdx = new Set<number>(Object.values(m) as number[]);
+  if (winner) mappedIdx.add(winner.idx);
+  const unmapped = header.filter((_, i) => !mappedIdx.has(i) && !skip.has(i));
+
+  const res = finish("csv", entries, dropped, warnings, ccys, coaDict,
     entries.length ? docIdRows / entries.length : 0);
+  res.column_map = columnMap;
+  res.unmapped_headers = unmapped;
+  res.name_source = nameSource;
+  res.overrides_applied = overridesApplied;
+  return res;
 }
 
 /* ------------------------------------------------------------------ */
@@ -580,6 +637,8 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
     dropped, warnings, genre: detectGenre(entries, docIdFrac), coa_dict: coaDict,
+    column_map: {}, unmapped_headers: [], overrides_applied: 0,
+    name_source: Object.keys(coaDict).length ? "mapped" : "none",
   };
 }
 

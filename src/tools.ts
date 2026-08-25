@@ -9,7 +9,7 @@ import { ParseError, NeedsInputError } from "./parse-ledger.js";
 import { EngineError, LimitError } from "./engine-http.js";
 import type { Store } from "./store.js";
 import type { RateLimiter, RequestContext } from "./ratelimit.js";
-import type { UsageCounter } from "./usage.js";
+import type { UsageCounter, EventName } from "./usage.js";
 
 export interface ToolDeps {
   engine: AnalysisEngine;
@@ -107,6 +107,19 @@ Pièges par ERP (encodés dans le parseur, rappelés ici pour l'appelant) :
 - **FEC** : format normé, détecté seul ; CompteLib = intitulé, EcritureLib = mémo.
 `;
 
+/** Signaux de mapping → compteurs /stats. Exportée pour être testable sans
+ *  McpServer. Tolère un detected partiel (moteur mock, versions antérieures). */
+export function recordAnalysisSignals(usage: UsageCounter, detected?: {
+  genre?: string; name_source?: string; overrides_applied?: number;
+}) {
+  if (!detected) return;
+  if (detected.genre === "ledger" || detected.genre === "trial_balance" || detected.genre === "unknown")
+    usage.record(("genre:" + detected.genre) as EventName);
+  if (detected.name_source === "adopted") usage.record("acct_name:adopted");
+  if (detected.name_source === "demoted") usage.record("acct_name:demoted");
+  if ((detected.overrides_applied ?? 0) > 0) usage.record("column_map_override");
+}
+
 export function registerTools(server: McpServer, deps: ToolDeps) {
   server.registerResource("mapping-guide", "kphi://mapping-guide", {
     title: "Guide de mapping K-Φ",
@@ -165,11 +178,13 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       const result = await deps.engine.analyze({ ...args });
       await deps.store.update(rec.id, { status: "ready", result });
       deps.usage.record("analysis_ready");
+      recordAnalysisSignals(deps.usage, result.detected);
       return present(deps, rec.id, result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await deps.store.update(rec.id, { status: "error", error: msg });
       deps.usage.record("analysis_error");
+      if (e instanceof NeedsInputError) deps.usage.record("needs_input");
       const d = describeAnalysisError(e, rec.id);
       return {
         content: [{ type: "text" as const, text: d.text }],

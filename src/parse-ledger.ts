@@ -228,33 +228,67 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
   }
   if (iMontDev >= 0) warnings.push("Montantdevise ignoré : les montants sont pris en devise de tenue (Debit/Credit).");
   for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
-  return finish("fec", entries, dropped, warnings, ccys, coaDict);
+  return finish("fec", entries, dropped, warnings, ccys, coaDict, 1);
 }
 
 /* ------------------------------------------------------------------ */
 /* CSV générique                                                        */
 /* ------------------------------------------------------------------ */
 
+/* Table de synonymes — portée du savoir ERP du wizard (import-wizard.js,
+   table add() + _ERP_AI_KNOWLEDGE). L'ORDRE des synonymes est un ORDRE DE
+   PRÉFÉRENCE : quand plusieurs colonnes candidates existent dans le même
+   fichier, la première de cette liste gagne. C'est ainsi que s'encodent les
+   pièges connus : Oracle ACCOUNTED avant ENTERED, D365 devise comptable
+   avant devise de transaction, NetSuite « Account Number » avant le
+   « Account » qui porte des NOMS, SAP DMBTR/HSL avant les montants devise
+   document. */
 const SYN: Record<string, string[]> = {
-  acct:   ["compte", "comptenum", "numerocompte", "nocompte", "account", "accountnumber", "accountcode", "glaccount", "code", "acct", "konto"],
+  /* formes numéro/code AVANT le « account » nu : NetSuite exporte les NOMS
+     dans « Account » et le code dans « Account Number ». */
+  acct:   ["comptenum", "numerocompte", "nocompte", "accountnumber", "accountno", "accountcode",
+           "glaccountno", "glaccount", "mainaccountid", "hkont", "racct", "acctno", "accnum",
+           "compte", "account", "acct", "konto", "acc", "code"],
+  /* D365 : chaîne à dimensions concaténées ("1200-001-SALES") — repli
+     UNIQUEMENT si aucun vrai code n'existe, avec avertissement. */
+  acct_display: ["accountdisplayvalue"],
   /* AVANT desc : sinon "accountdescription" serait happé par desc (inclusion
      de "description") et l'intitulé du compte finirait en mémo de ligne. */
   acct_name: ["accountname", "glaccountname", "comptelib", "libellecompte", "intitulecompte",
               "accounttitle", "accttitle", "acctname", "accountdesc", "accountdescription",
               "accountlabel", "kontobezeichnung", "acctdesc"],
-  desc:   ["libelle", "libellé", "label", "description", "memo", "intitule", "intitulé", "narration", "ecriturelib", "desc", "descr", "text"],
-  date:   ["date", "ecrituredate", "datecomptable", "dateecriture", "postingdate", "transactiondate", "datum"],
+  desc:   ["libelle", "libellé", "label", "description", "memo", "intitule", "intitulé", "narration", "ecriturelib", "desc", "descr", "text", "sgtxt", "itemtext"],
+  date:   ["date", "ecrituredate", "datecomptable", "dateecriture", "postingdate", "budat", "transactiondate", "transdate", "effectivedate", "gldate", "whenposted", "journaldate", "datum"],
   period: ["period", "periode", "monat", "poper", "fiscalperiod", "postingperiod", "accountingperiod", "periodname"],
   fy:     ["fiscalyear", "gjahr", "exercice", "annee", "fy", "year"],
-  dr:     ["debit", "débit", "dr", "soll"],
-  cr:     ["credit", "crédit", "cr", "haben"],
-  amount: ["montant", "amount", "solde", "net", "value", "betrag"],
-  entity: ["entite", "entité", "entity", "societe", "société", "company", "dossier", "legalentity"],
-  ccy:    ["devise", "currency", "ccy", "monnaie", "waehrung"],
-  tp:     ["tiers", "thirdparty", "counterparty", "compaux", "compauxnum", "auxiliaire", "customer", "vendor", "supplier", "partner"],
-  ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal"],
-  id:     ["id", "entryid", "ecriturenum", "numero", "num", "line", "ligne", "transactionid"],
+  /* montants : comptable/local AVANT transaction/devise document */
+  dr:     ["accounteddr", "accountingcurrencydebitamount", "functionaldebit", "debit", "debitamount", "debitamt", "soll", "dr", "débit", "entereddr", "transactioncurrencydebitamount"],
+  cr:     ["accountedcr", "accountingcurrencycreditamount", "functionalcredit", "credit", "creditamount", "creditamt", "haben", "cr", "crédit", "enteredcr", "transactioncurrencycreditamount"],
+  amount: ["hsl", "dmbtr", "amtloc", "amtcur", "amountinlocalcurrency", "amountincompanycodecurrency", "montant", "amount", "netamount", "solde", "net", "value", "betrag"],
+  /* indicateur débit/crédit : SAP SHKZG (S/H), Sage X3 SENS (D/C)… */
+  dc_ind: ["shkzg", "sens", "dcind", "debitcreditind", "debitcreditindicator", "debitcredit", "dcflag", "sh", "dc"],
+  /* Intacct : LOCATIONID = ENTITÉ, pas un lieu (piège documenté). */
+  entity: ["entite", "entité", "entity", "societe", "société", "company", "companycode", "bukrs", "rbukrs", "dataareaid", "subsidiary", "locationid", "site", "fcy", "legalentity", "dossier"],
+  ccy:    ["devise", "currency", "currencycode", "ccy", "monnaie", "waehrung", "waers", "rhcur", "rtcur", "basecurr"],
+  tp:     ["tiers", "thirdparty", "counterparty", "compaux", "compauxnum", "auxiliaire", "customer", "vendor", "supplier", "partner", "lifnr", "kunnr", "contact", "contactname", "sourcename", "payee", "vendorid", "customerid", "vendorname", "customername", "suppliername", "businesspartner"],
+  ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal", "xblnr", "zuonr", "refno", "referencenumber"],
+  id:     ["id", "entryid", "ecriturenum", "belnr", "voucherno", "vouchernumber", "journalnumber", "transactionnumber", "numero", "num", "line", "ligne", "transactionid"],
 };
+
+/* Colonnes à EXCLURE du mapping et de l'adoption : les pièges qui produisent
+   des chiffres faux (QuickBooks Balance = solde cumulé, Split = compte de
+   contrepartie ; Xero Gross/GST = montants TTC/taxe qui double-comptent). */
+const SKIP_RX = /^(balance|runningbalance|split|gross|grossamount|gst|tax|taxamount|taxtype|taxrate|exchangerate|fxrate)$/;
+
+/* Filtres de LIGNES connus (HFM/NetSuite) : quand la colonne existe et que
+   ses valeurs sont mixtes, ne garder que les lignes comptables réelles —
+   sinon Budget/Forecast et cumuls YTD polluent (double-comptage documenté
+   dans les règles HFM du wizard). */
+const ROW_FILTERS: Array<{ col: string; keep: RegExp; label: string }> = [
+  { col: "scenario",  keep: /^actuals?$/i,        label: "Scenario ≠ Actual (Budget/Forecast)" },
+  { col: "view",      keep: /^periodic$/i,        label: "View ≠ Periodic (YTD = cumul, double-comptage)" },
+  { col: "isposting", keep: /^(y|yes|true|1)$/i,  label: "Is Posting ≠ Yes (lignes statistiques)" },
+];
 
 function normHeader(h: string): string {
   return h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
@@ -300,17 +334,33 @@ class NameCandidate {
   }
 }
 
-function mapHeaders(header: string[]): Partial<Record<keyof typeof SYN, number>> {
+function mapHeaders(header: string[], skip: Set<number> = new Set()): Partial<Record<keyof typeof SYN, number>> {
   const norm = header.map(normHeader);
   const out: Partial<Record<keyof typeof SYN, number>> = {};
   const used = new Set<number>();
+  const free = (idx: number) => !used.has(idx) && !skip.has(idx);
+  /* Propriétaire exact : un en-tête qui EST un synonyme exact d'une clé ne
+     peut pas être happé par l'INCLUSION d'une autre clé. Ex. NetSuite
+     « Account » (synonyme exact de acct, mais non retenu car « Account
+     Number » a priorité) ne doit pas être avalé par acct_display ou
+     acct_name via inclusion — il doit rester libre pour l'élection
+     d'intitulé par les valeurs. */
+  const exactOwner = new Map<string, string>();
+  for (const k of Object.keys(SYN)) for (const s of SYN[k]) if (!exactOwner.has(s)) exactOwner.set(s, k);
   for (const key of Object.keys(SYN) as (keyof typeof SYN)[]) {
-    // 1) exact
-    let i = norm.findIndex((h, idx) => !used.has(idx) && SYN[key].includes(h));
+    /* 1) exact — itère les SYNONYMES dans l'ordre (= préférence), pas les
+       colonnes : un fichier Oracle avec ENTERED_DR et ACCOUNTED_DR mappe
+       ACCOUNTED_DR quel que soit l'ordre des colonnes. */
+    let i = -1;
+    for (const s of SYN[key]) {
+      const j = norm.findIndex((h, idx) => free(idx) && h === s);
+      if (j >= 0) { i = j; break; }
+    }
     // 2) inclusion dans les deux sens, uniquement sur des synonymes assez longs
     //    pour ne pas être ambigus ("ncompte" ⊃ "compte", "accountnumber" ⊃ "account",
     //    mais jamais "dr"/"cr"/"id"/"ref" par sous-chaîne).
-    if (i < 0) i = norm.findIndex((h, idx) => !used.has(idx) &&
+    if (i < 0) i = norm.findIndex((h, idx) => free(idx) &&
+      (!exactOwner.has(h) || exactOwner.get(h) === key) &&
       SYN[key].some(s => s.length >= 5 && (h.includes(s) || s.includes(h) && h.length >= 5)));
     if (i >= 0) { out[key] = i; used.add(i); }
   }
@@ -319,17 +369,53 @@ function mapHeaders(header: string[]): Partial<Record<keyof typeof SYN, number>>
 
 function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpts = {}): ParseResult {
   const header = splitLine(lines[0], delim);
-  const m = mapHeaders(header);
+  const normH = header.map(normHeader);
+  const warnings: string[] = [];
+
+  /* Colonnes-pièges : hors mapping, hors adoption. */
+  const skip = new Set<number>();
+  for (let i = 0; i < normH.length; i++) if (SKIP_RX.test(normH[i])) skip.add(i);
+  if (skip.size > 0)
+    warnings.push(`Colonnes ignorées (pièges connus : soldes cumulés, contreparties, montants TTC/taxe) : ${[...skip].map(i => header[i]).join(", ")}.`);
+
+  const m = mapHeaders(header, skip);
+  /* D365 : ACCOUNTDISPLAYVALUE en dernier recours seulement. */
+  if (m.acct == null && m.acct_display != null) {
+    m.acct = m.acct_display;
+    warnings.push(`Compte lu depuis « ${header[m.acct_display]} » (chaîne à dimensions concaténées) : mappez le code compte pur (MAINACCOUNTID) si disponible.`);
+  }
   if (m.acct == null) throw new ParseError("Colonne compte introuvable (attendu : compte / account / CompteNum…).");
   if (m.dr == null && m.cr == null && m.amount == null)
-    throw new ParseError("Colonnes montant introuvables (attendu : débit/crédit, ou montant signé).");
+    throw new ParseError("Colonnes montant introuvables (attendu : débit/crédit, ou montant signé avec indicateur D/C éventuel).");
+
+  /* Filtres de lignes (HFM Scenario/View, NetSuite Is Posting) : actifs
+     seulement quand la colonne existe ET porte des valeurs mixtes. */
+  const activeFilters: Array<{ idx: number; keep: RegExp; label: string; removed: number }> = [];
+  for (const f of ROW_FILTERS) {
+    const idx = normH.indexOf(f.col);
+    if (idx < 0 || skip.has(idx)) continue;
+    const vals = new Set<string>();
+    for (let i = 1; i < lines.length && vals.size < 8; i++) {
+      if (!lines[i].trim()) continue;
+      const v = (splitLine(lines[i], delim)[idx] ?? "").trim();
+      if (v) vals.add(v.toLowerCase());
+    }
+    const hasKeep = [...vals].some(v => f.keep.test(v));
+    if (vals.size > 1 && hasKeep) activeFilters.push({ idx, keep: f.keep, label: f.label, removed: 0 });
+    else if (vals.size === 1 && !hasKeep && f.col === "view")
+      warnings.push("Colonne View entièrement en cumul (YTD) : les montants sont cumulés, risque de double-comptage — exportez en Periodic.");
+  }
 
   const entries: LedgerEntry[] = [];
-  const warnings: string[] = [];
   let dropped = 0;
   const ccys = new Map<string, number>();
-  const signedMode = m.dr == null && m.cr == null;
-  if (signedMode) warnings.push("Montant signé détecté : positif → débit, négatif → crédit.");
+  const dualMode = m.dr != null && m.cr != null;
+  const indicatorMode = !dualMode && m.amount != null && m.dc_ind != null;
+  const signedMode = !dualMode && !indicatorMode && m.dr == null && m.cr == null;
+  if (indicatorMode)
+    warnings.push(`Montant unique + indicateur D/C (« ${header[m.dc_ind!]} ») : S/D/DR/SOLL → débit, H/C/CR/HABEN → crédit, montants pris en valeur absolue (convention SAP/Sage X3).`);
+  else if (signedMode) warnings.push("Montant signé détecté : positif → débit, négatif → crédit.");
+  let indUnknown = 0, negWithInd = 0, docIdRows = 0;
 
   /* ── Résolution des dates : échelle explicite, jamais de date inventée ──
      1. colonne date du fichier
@@ -357,16 +443,29 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const cands: NameCandidate[] = [];
   if (m.acct_name != null) cands.push(new NameCandidate(m.acct_name, true));
   for (let i = 0; i < header.length && cands.length < 13; i++)
-    if (!used.has(i)) cands.push(new NameCandidate(i, false));
+    if (!used.has(i) && !skip.has(i)) cands.push(new NameCandidate(i, false));
 
   for (let i = 1; i < lines.length; i++) {
     const raw = lines[i];
     if (!raw.trim()) { dropped++; continue; }
     const c = splitLine(raw, delim);
+    let rowFiltered = false;
+    for (const f of activeFilters) {
+      if (!f.keep.test((c[f.idx] ?? "").trim())) { f.removed++; rowFiltered = true; break; }
+    }
+    if (rowFiltered) continue;
     const acct = (c[m.acct] ?? "").trim();
     if (!acct || /^total/i.test(acct)) { dropped++; continue; }
     let dr = 0, cr = 0;
-    if (signedMode) {
+    if (indicatorMode) {
+      let a = num(c[m.amount!]);
+      if (isNaN(a) || a === 0) { dropped++; continue; }
+      if (a < 0) { negWithInd++; a = -a; }
+      const ind = (c[m.dc_ind!] ?? "").trim().toUpperCase();
+      if (/^(S|D|DR|DEBIT|SOLL)$/.test(ind)) dr = a;
+      else if (/^(H|C|CR|CREDIT|HABEN)$/.test(ind)) cr = a;
+      else { indUnknown++; dropped++; continue; }
+    } else if (signedMode) {
       const a = num(c[m.amount!]);
       if (isNaN(a) || a === 0) { dropped++; continue; }
       if (a > 0) dr = a; else cr = -a;
@@ -393,6 +492,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const rowEntity = m.entity != null && c[m.entity] ? c[m.entity] : entity;
     const ccy = m.ccy != null && c[m.ccy] ? c[m.ccy].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
+    if (m.id != null && c[m.id]) docIdRows++;
     entries.push({
       acct, dr, cr, date, period: period(date), entity: rowEntity,
       desc: m.desc != null ? (c[m.desc] ?? "") : "", ccy,
@@ -417,6 +517,10 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const after = entries.filter(e => !e._is_synth_date && e.date > peIso).length;
     if (after > 0) warnings.push(`${after} écriture(s) postérieures à period_end ${peIso} : clôture incomplète ou period_end erroné ?`);
   }
+  for (const f of activeFilters)
+    if (f.removed > 0) warnings.push(`${f.removed} ligne(s) exclue(s) — ${f.label}.`);
+  if (indUnknown > 0) warnings.push(`${indUnknown} ligne(s) à indicateur D/C illisible ignorées.`);
+  if (negWithInd > 0) warnings.push(`${negWithInd} montant(s) négatifs malgré l'indicateur D/C : valeur absolue appliquée.`);
 
   /* ── Élection de l'intitulé de compte ── */
   const totalAccts = new Set(entries.map(e => e.acct)).size;
@@ -438,12 +542,13 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const coaDict = winner ? winner.dict() : {};
   for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
 
-  return finish("csv", entries, dropped, warnings, ccys, coaDict);
+  return finish("csv", entries, dropped, warnings, ccys, coaDict,
+    entries.length ? docIdRows / entries.length : 0);
 }
 
 /* ------------------------------------------------------------------ */
 
-function detectGenre(entries: LedgerEntry[]): "ledger" | "trial_balance" | "unknown" {
+function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_balance" | "unknown" {
   if (!entries.length) return "unknown";
   const pairs = new Set<string>();
   let withRef = 0;
@@ -452,7 +557,9 @@ function detectGenre(entries: LedgerEntry[]): "ledger" | "trial_balance" | "unkn
     if (e.ref || e.tp) withRef++;
   }
   const rpp = entries.length / pairs.size;      /* lignes par (compte, période) */
-  const refFrac = withRef / entries.length;     /* part des lignes référencées  */
+  /* Référencé = pièce/tiers sur la ligne OU numéro de document mappé (BELNR,
+     JournalNumber…) : un FBL3N sans colonne tiers reste un grand livre. */
+  const refFrac = Math.max(withRef / entries.length, docIdFrac);
   if (rpp <= 1.6 && refFrac < 0.2) return "trial_balance";
   if (rpp >= 2.5 || refFrac >= 0.5) return "ledger";
   return "unknown";
@@ -460,7 +567,7 @@ function detectGenre(entries: LedgerEntry[]): "ledger" | "trial_balance" | "unkn
 
 function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
                 warnings: string[], ccys: Map<string, number>,
-                coaDict: Record<string, string> = {}): ParseResult {
+                coaDict: Record<string, string> = {}, docIdFrac = 0): ParseResult {
   if (!entries.length) throw new ParseError("Aucune écriture exploitable trouvée dans le fichier.");
   const periods = entries.map(e => e.period).filter(Boolean).sort();
   const currency = [...ccys.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "EUR";
@@ -472,7 +579,7 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
     format, entries,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
-    dropped, warnings, genre: detectGenre(entries), coa_dict: coaDict,
+    dropped, warnings, genre: detectGenre(entries, docIdFrac), coa_dict: coaDict,
   };
 }
 

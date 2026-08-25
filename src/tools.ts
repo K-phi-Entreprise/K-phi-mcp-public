@@ -48,7 +48,8 @@ function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
     (r.alerts.length ? `\nAlertes :\n${r.alerts.map(a => `- ${a}`).join("\n")}\n` : "") +
     (breaches ? `\n${breaches} covenant(s) en breach.\n` : "") +
     `\nKPI :\n${r.kpis.map(k => `- ${k.label} : ${fmt(k.value, k.unit)}${k.status ? ` [${k.status}]` : ""}`).join("\n")}\n` +
-    `\nOuvrir l'analyse complète, la versionner et suivre les covenants dans le temps : ${payload.open_in_kphi_url}`;
+    `\nVoir cette analyse dans K-Φ (bilan, P&L, flux de trésorerie, 30 KPI) : ${payload.open_in_kphi_url}\n` +
+    `Lien personnel, valable 24 h, sans compte. Pour conserver vos données au-delà (30 jours gratuits), confirmez votre email depuis la page.`;
   return {
     content: [{ type: "text" as const, text }],
     structuredContent: payload,

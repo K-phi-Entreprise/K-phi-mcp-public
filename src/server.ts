@@ -119,6 +119,9 @@ app.get("/a/:id", async (req, res) => {
   // rattacher au compte créé par magic link. Absent avec le mock.
   const rec = await store.get(req.params.id);
   const sb = rec?.result?.sandbox;
+  // Moteur réel : lien signé qui ouvre le tenant en lecture seule dans l'app.
+  if (sb?.open_url) { res.redirect(302, sb.open_url); return; }
+  // Repli (mock, ou open-link en échec) : la page /a/:id côté plateforme.
   if (sb) { q.set("tenant", sb.tenant_id); q.set("ver", sb.ver); }
   res.redirect(302, `${PUBLIC_BASE_URL}/a/${req.params.id}?${q.toString()}`);
 });

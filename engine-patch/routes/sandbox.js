@@ -6,6 +6,14 @@
  *   POST /api/internal/sandbox/tenant   → creates a sandbox tenant, returns
  *                                          { tenantId, name, token }
  *   POST /api/internal/sandbox/token    → token for an existing sandbox tenant
+ *   POST /api/internal/sandbox/open-link→ { url } : signed 24h read-only link
+ *   GET  /api/internal/sandbox/open?t=  → that link: sets a viewer session
+ *                                          cookie on the sandbox, redirects /app
+ *   POST /api/sandbox/claim { email }   → from the app (viewer session on an
+ *                                          MCP-* tenant): creates the owner user
+ *                                          unverified and emails the verify link
+ *   (hook) ctx.claimSandbox(userId)     → called by /api/auth/verify: 30-day
+ *                                          trial, owner, tenant renamed
  *   (cron)  purge sandbox tenants older than SANDBOX_TTL_HOURS that were
  *           never claimed (no verified human user)
  *
@@ -44,13 +52,16 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 module.exports = function mountSandbox(app, ctx) {
-  const { q, q1, run, saveMaster, SLog, auditLog } = ctx;
+  const { q, q1, run, saveMaster, SLog, auditLog, auth, setAuthCookie, sendVerificationEmail, canonicalizeEmail, isCompanyEmail } = ctx;
   const SECRET = process.env.KPHI_SANDBOX_SECRET;
   const TOKEN_TTL = parseInt(process.env.SANDBOX_TOKEN_TTL_SEC || '300', 10);
   const TTL_HOURS = parseInt(process.env.SANDBOX_TTL_HOURS || '24', 10);
   const EVERY_MIN = parseInt(process.env.SANDBOX_PURGE_EVERY_MIN || '60', 10);
   const MAX_ENTRIES = parseInt(process.env.SANDBOX_MAX_ENTRIES || '200000', 10);
+  const OPEN_TTL_SEC = parseInt(process.env.SANDBOX_OPEN_TTL_SEC || String(24 * 3600), 10);
+  const TRIAL_DAYS = parseInt(process.env.SANDBOX_TRIAL_DAYS || '30', 10);
   const NAME_PREFIX = 'MCP-';
+  const APP_URL = ctx.APP_URL || process.env.APP_URL || 'https://k-phi.com';
 
   const JWT_SECRET = ctx.JWT_SECRET || process.env.JWT_SECRET;
   /* Routes are ALWAYS registered so tools/route-table.js sees the same table
@@ -136,6 +147,84 @@ module.exports = function mountSandbox(app, ctx) {
     if (!t || !String(t.name || '').startsWith(NAME_PREFIX)) return res.status(404).json({ error: 'not a sandbox tenant' });
     res.json({ token: serviceToken(tid), expires_in: TOKEN_TTL });
   });
+
+  /* ── signed read-only link (what the MCP puts in its answer) ───── */
+  app.post('/api/internal/sandbox/open-link', async (req, res) => {
+    if (!gate(req, res)) return;
+    const tid = String((req.body && req.body.tenantId) || '');
+    if (!/^[a-f0-9]{32}$/.test(tid)) return res.status(400).json({ error: 'tenantId required' });
+    const t = await q1(ctx.masterDb, 'SELECT id, name FROM tenants WHERE id=?', [tid]);
+    if (!t || !String(t.name || '').startsWith(NAME_PREFIX)) return res.status(404).json({ error: 'not a sandbox tenant' });
+    /* Bearer of this link = the prospect. viewer only: writeAuth refuses it,
+       so nothing can be changed from a leaked link. No csrf claim is fine —
+       a viewer never POSTs. */
+    const tok = jwt.sign({ userId: 'anon:' + tid.slice(0, 8), tenantId: tid, role: 'viewer', svc: 'mcp-open' },
+                         JWT_SECRET, { expiresIn: OPEN_TTL_SEC });
+    res.json({ url: APP_URL + '/api/internal/sandbox/open?t=' + encodeURIComponent(tok), expires_in: OPEN_TTL_SEC });
+  });
+
+  app.get('/api/internal/sandbox/open', async (req, res) => {
+    if (!ENABLED) return res.status(404).send('Not found');
+    let d;
+    try { d = jwt.verify(String(req.query.t || ''), JWT_SECRET); } catch (e) { return res.status(400).send('Link invalid or expired'); }
+    if (!d || d.svc !== 'mcp-open' || d.role !== 'viewer') return res.status(400).send('Link invalid');
+    const t = await q1(ctx.masterDb, 'SELECT id, name FROM tenants WHERE id=?', [d.tenantId]);
+    if (!t) return res.status(410).send('This analysis has expired and was deleted.');
+    /* Session cookie = the same token (auth() accepts cookie first). Once the
+       tenant is claimed the name loses its MCP- prefix but the link still
+       opens it read-only until it expires — harmless, and the owner has a
+       real login by then. */
+    setAuthCookie(res, String(req.query.t));
+    auditLog(t.id, d.userId, 'SANDBOX_OPEN', {});
+    res.redirect(302, '/app');
+  });
+
+  /* ── claim: the app asks for an email on an MCP-* tenant ────────── */
+  app.post('/api/sandbox/claim', auth, async (req, res) => {
+    const t = await q1(ctx.masterDb, 'SELECT id, name FROM tenants WHERE id=?', [req.tenantId]);
+    if (!t || !String(t.name || '').startsWith(NAME_PREFIX)) return res.status(400).json({ error: 'Not a sandbox tenant' });
+    const email = canonicalizeEmail ? canonicalizeEmail(String((req.body && req.body.email) || '')) : String((req.body && req.body.email) || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Valid email required' });
+    if (isCompanyEmail && !isCompanyEmail(email)) return res.status(400).json({ error: 'Please use a company email address' });
+    const taken = await q1(ctx.masterDb, 'SELECT id, tenant_id FROM users WHERE email=?', [email]);
+    if (taken) return res.status(409).json({ error: 'This email already has a K-Φ account. Sign in and import your file there.' });
+    const already = await q1(ctx.masterDb, "SELECT id FROM users WHERE tenant_id=? AND email NOT LIKE 'hotline+%'", [t.id]);
+    if (already) return res.status(409).json({ error: 'This analysis is already being claimed.' });
+    /* Same shape as register, unverified. password_hash is NOT NULL: a random
+       placeholder; the user sets a real one through forgot-password after
+       confirming. */
+    const uid = crypto.randomBytes(16).toString('hex');
+    const verifyToken = crypto.randomBytes(24).toString('hex');
+    const placeholder = 'unset:' + crypto.randomBytes(24).toString('hex');
+    await run(ctx.masterDb,
+      "INSERT INTO users (id,tenant_id,email,password_hash,role,created_at,email_verified,verify_token,verify_expires) VALUES (?,?,?,?,?,?,0,?,?)",
+      [uid, t.id, email, placeholder, 'owner', sqlNow(), verifyToken, sqlNow(24 * 3600 * 1000)]);
+    saveMaster();
+    try { await sendVerificationEmail(email, verifyToken, t.name); }
+    catch (e) { SLog.error('SANDBOX', 'verification email failed', { error: e.message }); return res.status(502).json({ error: 'Could not send the confirmation email. Please try again.' }); }
+    auditLog(t.id, email, 'SANDBOX_CLAIM_REQUESTED', {});
+    res.json({ sent: true, expires_in: 24 * 3600 });
+  });
+
+  /* ── called by /api/auth/verify once the email is confirmed ─────── */
+  async function claimSandbox(userId) {
+    const u = await q1(ctx.masterDb, 'SELECT id, email, tenant_id FROM users WHERE id=?', [userId]);
+    if (!u) return;
+    const t = await q1(ctx.masterDb, 'SELECT id, name FROM tenants WHERE id=?', [u.tenant_id]);
+    if (!t || !String(t.name || '').startsWith(NAME_PREFIX)) return;   /* not a sandbox: nothing to do */
+    /* Freemium clock starts NOW, not at the anonymous analysis. Name: the
+       email domain — good enough until the owner renames it in settings,
+       and it drops the MCP- prefix so the tenant leaves the sandbox world
+       (purge, /sandbox/token, /open-link all key on the prefix). */
+    const domain = (u.email.split('@')[1] || 'company').split('.')[0];
+    const name = domain.charAt(0).toUpperCase() + domain.slice(1);
+    await run(ctx.masterDb, "UPDATE tenants SET name=?, plan='free', trial_expires_at=?, status='active' WHERE id=?",
+      [name, sqlNow(TRIAL_DAYS * 24 * 3600 * 1000), t.id]);
+    await run(ctx.masterDb, "UPDATE users SET role='owner', force_password_reset=1 WHERE id=?", [u.id]);
+    auditLog(t.id, u.email, 'SANDBOX_CLAIMED', { from: t.name, trialDays: TRIAL_DAYS });
+    SLog.info('SANDBOX', 'claimed', { tenant: t.id.slice(0, 8), from: t.name, to: name });
+  }
+  mountSandbox.claimSandbox = claimSandbox;
 
   /* ── purge unclaimed sandboxes ─────────────────────────────────── */
   async function purgeStale() {

@@ -50,7 +50,7 @@ export interface AnalysisResult {
   summary_markdown: string;
   /** Rempli par le moteur réel : le tenant K-Phi qui héberge cette analyse,
    *  à réclamer par le prospect (conversion). Absent avec le mock. */
-  sandbox?: { tenant_id: string; tenant_name: string; ver: string };
+  sandbox?: { tenant_id: string; tenant_name: string; ver: string; open_url?: string };
 }
 
 export interface AnalysisEngine {

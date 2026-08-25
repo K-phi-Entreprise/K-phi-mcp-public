@@ -57,7 +57,9 @@ export class KphiHttpEngine implements AnalysisEngine {
       : [position];
 
     const result = toAnalysisResult(parsed, position, monthly, input);
-    result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last };
+    // Lien signé 24 h, lecture seule, ouvre le tenant dans l'app sans login.
+    const open_url = await this.openLink(sb.tenantId).catch(e => { console.error("open-link failed", e); return undefined; });
+    result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last, open_url };
     return result;
   }
 
@@ -76,6 +78,18 @@ export class KphiHttpEngine implements AnalysisEngine {
     const j = await r.json() as { tenantId?: string; name?: string; token?: string; error?: string };
     if (!r.ok || !j.token || !j.tenantId) throw new Error(`sandbox tenant: ${r.status} ${j.error ?? ""}`);
     return { tenantId: j.tenantId, name: j.name ?? "", token: j.token };
+  }
+
+  /** Lien signé (24 h) qui ouvre le tenant en lecture seule dans l'app K-Φ. */
+  async openLink(tenantId: string): Promise<string> {
+    const r = await this.fetch("/api/internal/sandbox/open-link", {
+      method: "POST",
+      headers: { "X-Sandbox-Secret": this.cfg.serviceSecret, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId }),
+    });
+    const j = await r.json() as { url?: string; error?: string };
+    if (!r.ok || !j.url) throw new Error(`open-link: ${r.status} ${j.error ?? ""}`);
+    return j.url;
   }
 
   /** Jeton pour relire un tenant sandbox existant (ex. après upload asynchrone). */

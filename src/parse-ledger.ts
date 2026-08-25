@@ -28,6 +28,17 @@ export interface LedgerEntry {
   entry_id: string;
   tp?: string;
   ref?: string;
+  /** Date générée (colonne période / period_end), pas lue dans le fichier.
+   *  Repris tel quel par le moteur (colonne gl_entries.is_synth_date) : le
+   *  GL Explorer marque ces écritures, comme pour les ERP sans dates
+   *  (Hyperion). Jamais de date inventée sans ce marqueur. */
+  _is_synth_date?: boolean;
+}
+
+/** Contexte fourni par l'appelant (paramètres de l'outil MCP). */
+export interface ParseOpts {
+  /** Date de clôture YYYY-MM-DD — dernier échelon de résolution des dates. */
+  periodEnd?: string;
 }
 
 export interface ParseResult {
@@ -43,6 +54,15 @@ export interface ParseResult {
 
 export class ParseError extends Error {
   constructor(msg: string) { super(msg); this.name = "ParseError"; }
+}
+
+/** Le fichier est lisible mais il manque une information que l'appelant peut
+ *  fournir (ex. period_end quand il n'y a ni date ni période exploitables).
+ *  Étend ParseError pour que les appelants existants restent corrects ;
+ *  tools.ts la présente comme une question structurée, pas comme un échec. */
+export class NeedsInputError extends ParseError {
+  needs: string[];
+  constructor(msg: string, needs: string[]) { super(msg); this.name = "NeedsInputError"; this.needs = needs; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -113,6 +133,28 @@ function isoDate(s: string | undefined): string {
 
 const period = (iso: string) => iso ? iso.slice(0, 7) : "";
 
+/** Cellule de période → "YYYY-MM". Formats : "2025-01", "202501", "01/2025",
+ *  "2025/01", et numérique nu "1".."16" (exige fyHint ; 13-16 = périodes
+ *  spéciales SAP/Oracle → mois 12). "" si non reconnu. */
+function parsePeriodCell(s: string | undefined, fyHint?: number): string {
+  if (!s) return "";
+  const t = String(s).trim();
+  let m: RegExpMatchArray | null;
+  const ym = (y: number, mo: number) =>
+    (mo >= 1 && mo <= 16 && y >= 1900 && y <= 2200) ? `${y}-${String(Math.min(mo, 12)).padStart(2, "0")}` : "";
+  if ((m = t.match(/^(\d{4})[-\/](\d{1,2})$/))) return ym(+m[1], +m[2]);
+  if ((m = t.match(/^(\d{1,2})[-\/](\d{4})$/))) return ym(+m[2], +m[1]);
+  if ((m = t.match(/^(\d{4})(\d{2})$/)))        return ym(+m[1], +m[2]);
+  if ((m = t.match(/^(\d{1,2})$/)))             return fyHint ? ym(fyHint, +m[1]) : "";
+  return "";
+}
+
+/** Dernier jour du mois de "YYYY-MM" (UTC, sans surprise de fuseau). */
+function lastDayOf(ym: string): string {
+  const y = +ym.slice(0, 4), mo = +ym.slice(5, 7);
+  return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
+}
+
 /* ------------------------------------------------------------------ */
 /* FEC                                                                  */
 /* ------------------------------------------------------------------ */
@@ -173,6 +215,8 @@ const SYN: Record<string, string[]> = {
   acct:   ["compte", "comptenum", "numerocompte", "nocompte", "account", "accountnumber", "accountcode", "glaccount", "code", "acct", "konto"],
   desc:   ["libelle", "libellé", "label", "description", "memo", "intitule", "intitulé", "narration", "ecriturelib", "desc", "descr", "text"],
   date:   ["date", "ecrituredate", "datecomptable", "dateecriture", "postingdate", "transactiondate", "datum"],
+  period: ["period", "periode", "monat", "poper", "fiscalperiod", "postingperiod", "accountingperiod", "periodname"],
+  fy:     ["fiscalyear", "gjahr", "exercice", "annee", "fy", "year"],
   dr:     ["debit", "débit", "dr", "soll"],
   cr:     ["credit", "crédit", "cr", "haben"],
   amount: ["montant", "amount", "solde", "net", "value", "betrag"],
@@ -204,7 +248,7 @@ function mapHeaders(header: string[]): Partial<Record<keyof typeof SYN, number>>
   return out;
 }
 
-function parseCsv(lines: string[], delim: string, entity: string): ParseResult {
+function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpts = {}): ParseResult {
   const header = splitLine(lines[0], delim);
   const m = mapHeaders(header);
   if (m.acct == null) throw new ParseError("Colonne compte introuvable (attendu : compte / account / CompteNum…).");
@@ -217,9 +261,25 @@ function parseCsv(lines: string[], delim: string, entity: string): ParseResult {
   const ccys = new Map<string, number>();
   const signedMode = m.dr == null && m.cr == null;
   if (signedMode) warnings.push("Montant signé détecté : positif → débit, négatif → crédit.");
-  if (m.date == null) warnings.push("Pas de colonne date : période dérivée impossible, les écritures sont datées du 1er du mois courant.");
 
-  const fallbackDate = new Date().toISOString().slice(0, 8) + "01";
+  /* ── Résolution des dates : échelle explicite, jamais de date inventée ──
+     1. colonne date du fichier
+     2. colonne période (+ colonne exercice, sinon l'année de period_end)
+        → dernier jour du mois, marqué _is_synth_date
+     3. period_end seul → toutes les écritures à cette date, marquées
+     4. rien → NeedsInputError : on demande, on ne devine pas.
+     L'ancien repli « 1er du mois courant » datait tout l'exercice du mois
+     de l'analyse : DSO/DPO/DIO faux d'un facteur 12, période affichée
+     fausse. Une donnée fabriquée est consentie, marquée, ou refusée. */
+  const peIso = opts.periodEnd ? isoDate(opts.periodEnd) : "";
+  if (opts.periodEnd && !peIso) warnings.push(`period_end « ${opts.periodEnd} » invalide (attendu YYYY-MM-DD) : ignoré.`);
+  const fyDefault = peIso ? +peIso.slice(0, 4) : undefined;
+  if (m.date == null && m.period == null && !peIso)
+    throw new NeedsInputError(
+      "Aucune information de date dans le fichier (ni colonne date, ni colonne période). " +
+      "Fournissez period_end (date de clôture YYYY-MM-DD) ou ré-exportez avec les dates.",
+      ["period_end"]);
+  let synthCount = 0, periodUnreadable = 0;
 
   for (let i = 1; i < lines.length; i++) {
     const raw = lines[i];
@@ -239,8 +299,18 @@ function parseCsv(lines: string[], delim: string, entity: string): ParseResult {
       if (isNaN(cr)) cr = 0;
       if (dr === 0 && cr === 0) { dropped++; continue; }
     }
-    const date = m.date != null ? isoDate(c[m.date]) : fallbackDate;
+    /* Échelle de résolution, par ligne */
+    let date = m.date != null ? isoDate(c[m.date]) : "";
+    let synth = false;
+    if (!date && m.period != null) {
+      const fyRow = m.fy != null ? parseInt(String(c[m.fy] ?? ""), 10) : NaN;
+      const ym = parsePeriodCell(c[m.period], isFinite(fyRow) ? fyRow : fyDefault);
+      if (ym) { date = lastDayOf(ym); synth = true; }
+      else periodUnreadable++;
+    }
+    if (!date && peIso) { date = peIso; synth = true; }
     if (!date) { dropped++; continue; }
+    if (synth) synthCount++;
     const rowEntity = m.entity != null && c[m.entity] ? c[m.entity] : entity;
     const ccy = m.ccy != null && c[m.ccy] ? c[m.ccy].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
@@ -250,7 +320,23 @@ function parseCsv(lines: string[], delim: string, entity: string): ParseResult {
       entry_id: `${m.id != null && c[m.id] ? c[m.id] : "r"}_${i}`,
       tp: m.tp != null && c[m.tp] ? c[m.tp] : undefined,
       ref: m.ref != null && c[m.ref] ? c[m.ref] : undefined,
+      ...(synth ? { _is_synth_date: true } : {}),
     });
+  }
+  if (!entries.length && (periodUnreadable > 0 || (m.date == null && m.period != null && !peIso)))
+    throw new NeedsInputError(
+      "Colonne période présente mais année indéterminable (périodes numériques sans exercice). " +
+      "Fournissez period_end (YYYY-MM-DD) : son année servira d'exercice.",
+      ["period_end"]);
+  if (synthCount > 0)
+    warnings.push(`${synthCount} écriture(s) sans date : dates synthétiques générées ` +
+      (m.period != null ? "depuis la colonne période (dernier jour du mois" : `au period_end fourni (${peIso}`) +
+      ", marquées is_synth_date dans K-Φ).");
+  if (periodUnreadable > 0 && entries.length)
+    warnings.push(`${periodUnreadable} ligne(s) à période illisible ${peIso ? `datées au period_end` : "ignorées"}.`);
+  if (peIso) {
+    const after = entries.filter(e => !e._is_synth_date && e.date > peIso).length;
+    if (after > 0) warnings.push(`${after} écriture(s) postérieures à period_end ${peIso} : clôture incomplète ou period_end erroné ?`);
   }
   return finish("csv", entries, dropped, warnings, ccys);
 }
@@ -276,9 +362,10 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
 
 /**
  * Point d'entrée. `entity` = nom d'entité par défaut si le fichier n'en porte pas
- * (le moteur exige une entité, même unique).
+ * (le moteur exige une entité, même unique). `opts.periodEnd` = date de clôture
+ * fournie par l'appelant, utilisée par l'échelle de résolution des dates.
  */
-export function parseLedger(content: string, entity = "ENTITY"): ParseResult {
+export function parseLedger(content: string, entity = "ENTITY", opts: ParseOpts = {}): ParseResult {
   const text = content.replace(/^\uFEFF/, "");
   const lines = text.split(/\r?\n/);
   const firstIdx = lines.findIndex(l => l.trim());
@@ -287,5 +374,5 @@ export function parseLedger(content: string, entity = "ENTITY"): ParseResult {
   const delim = detectDelimiter(body[0]);
   const header = splitLine(body[0], delim);
   if (header.length < 3) throw new ParseError("En-tête non reconnue (moins de 3 colonnes).");
-  return looksLikeFec(header) ? parseFec(body, delim, entity) : parseCsv(body, delim, entity);
+  return looksLikeFec(header) ? parseFec(body, delim, entity) : parseCsv(body, delim, entity, opts);
 }

@@ -3,7 +3,7 @@ services:
     name: kphi-mcp-public
     env: node
     plan: starter
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /healthz
     envVars:

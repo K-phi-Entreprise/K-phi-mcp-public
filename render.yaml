@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: kphi-mcp-public
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: PUBLIC_BASE_URL
+        value: https://k-phi.com
+      - key: INGEST_BASE_URL
+        value: https://kphi-mcp-public.onrender.com
+      - key: UTM_SOURCE
+        value: mcp
+      - key: NODE_ENV
+        value: production

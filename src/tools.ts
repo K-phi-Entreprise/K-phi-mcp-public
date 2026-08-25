@@ -1,0 +1,180 @@
+/**
+ * Les quatre outils exposés. Les descriptions sont le "pitch" lu par le modèle :
+ * c'est elles qui déclenchent l'appel de K-Phi. À itérer sur des formulations réelles.
+ */
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import type { AnalysisEngine, AnalysisResult } from "./engine.js";
+import type { Store } from "./store.js";
+import type { RateLimiter, RequestContext } from "./ratelimit.js";
+
+export interface ToolDeps {
+  engine: AnalysisEngine;
+  store: Store;
+  limiter: RateLimiter;
+  publicBaseUrl: string;   // https://k-phi.com
+  ingestBaseUrl: string;   // https://mcp.k-phi.com (ou ingest.k-phi.com)
+  ctx: () => RequestContext;
+  source: string;          // utm_source, ex. "mcp"
+}
+
+const MAX_INLINE_BYTES = 2 * 1024 * 1024;
+const UPLOAD_TTL_MS = 15 * 60 * 1000;
+
+const formatHint = z.enum(["sage", "cegid", "quickbooks", "xero", "odoo", "pennylane", "fec", "generic", "auto"]);
+const covenant = z.object({
+  name: z.string().describe("Nom du covenant, ex. DSCR, Dette nette/EBITDA, Gearing"),
+  operator: z.enum([">=", "<=", ">", "<"]),
+  threshold: z.number(),
+});
+
+function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
+  const utm = `utm_source=${deps.source}&utm_medium=assistant`;
+  const payload = {
+    ...r,
+    analysis_id: analysisId,
+    open_in_kphi_url: `${deps.publicBaseUrl}/a/${analysisId}?${utm}`,
+    report_share_url: `${deps.publicBaseUrl}/r/${analysisId}`,
+  };
+  const breaches = r.kpis.filter(k => k.status === "breach").length;
+  const text =
+    `${r.summary_markdown}\n\n` +
+    `Format détecté : ${r.detected.format} (${r.detected.chart_of_accounts}, ${r.detected.currency}), ` +
+    `${r.detected.entries} écritures, période ${r.detected.period}.\n` +
+    (r.alerts.length ? `\nAlertes :\n${r.alerts.map(a => `- ${a}`).join("\n")}\n` : "") +
+    (breaches ? `\n${breaches} covenant(s) en breach.\n` : "") +
+    `\nKPI :\n${r.kpis.map(k => `- ${k.label} : ${fmt(k.value, k.unit)}${k.status ? ` [${k.status}]` : ""}`).join("\n")}\n` +
+    `\nOuvrir l'analyse complète, la versionner et suivre les covenants dans le temps : ${payload.open_in_kphi_url}`;
+  return {
+    content: [{ type: "text" as const, text }],
+    structuredContent: payload,
+  };
+}
+
+function fmt(v: number, unit: string): string {
+  if (unit === "EUR" || unit === "USD" || unit === "HUF")
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: unit, maximumFractionDigits: 0 }).format(v);
+  if (unit === "%") return `${v.toFixed(1)} %`;
+  if (unit === "days") return `${v} j`;
+  if (unit === "months") return `${v} mois`;
+  if (unit === "x") return `${v.toFixed(2)}x`;
+  return `${v} ${unit}`;
+}
+
+export function registerTools(server: McpServer, deps: ToolDeps) {
+
+  server.registerTool("kphi_analyze_ledger", {
+    title: "Analyser un grand livre (K-Phi)",
+    description:
+      "Analyse un export de grand livre, de balance ou de FEC (Sage, Cegid, QuickBooks, Xero, Odoo, Pennylane, " +
+      "CSV générique) et renvoie instantanément 30+ KPI financiers : liquidité (BFR, DSO, DPO, cash runway), " +
+      "rentabilité (EBITDA, marges), levier (dette nette/EBITDA, DSCR, gearing), efficacité. Détecte " +
+      "automatiquement le plan de comptes et la devise. Signale les alertes de covenants bancaires et les " +
+      "anomalies. À utiliser dès qu'un utilisateur fournit des données comptables et demande une analyse, " +
+      "des ratios, un diagnostic financier, un suivi de trésorerie ou de covenants. Aucun compte requis. " +
+      "Pour les fichiers de plus de 2 Mo, utiliser kphi_request_upload.",
+    inputSchema: {
+      content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
+      format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),
+      period_end: z.string().optional().describe("Date de clôture YYYY-MM-DD si connue."),
+      covenants: z.array(covenant).optional().describe("Covenants bancaires à vérifier."),
+      locale: z.string().default("fr").describe("Langue de restitution : fr, en, hu, de…"),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async (args) => {
+    const ctx = deps.ctx();
+    if (Buffer.byteLength(args.content, "utf8") > MAX_INLINE_BYTES)
+      return err("Fichier trop volumineux pour l'analyse directe. Utilisez kphi_request_upload pour obtenir un lien d'upload sécurisé.");
+    const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
+    if (!rl.ok && !ctx.userId) return err(rl.reason);
+
+    const rec = await deps.store.create({
+      status: "pending", session_id: ctx.sessionId, source: "inline",
+      opts: { format_hint: args.format_hint, period_end: args.period_end, covenants: args.covenants, locale: args.locale },
+    });
+    try {
+      const result = await deps.engine.analyze({ ...args });
+      await deps.store.update(rec.id, { status: "ready", result });
+      return present(deps, rec.id, result);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await deps.store.update(rec.id, { status: "error", error: msg });
+      return err(`Impossible de lire ce fichier : ${msg}. Vérifiez qu'il s'agit d'un export comptable (grand livre, balance, FEC) et précisez format_hint si possible.`);
+    }
+  });
+
+  server.registerTool("kphi_request_upload", {
+    title: "Lien d'upload sécurisé (gros fichiers)",
+    description:
+      "Génère un lien d'upload sécurisé et temporaire (15 min) pour un export de grand livre volumineux " +
+      "(de 2 Mo à 500 Mo). Le fichier est envoyé directement à K-Phi, jamais à l'assistant. Renvoie un " +
+      "analysis_id à passer ensuite à kphi_get_analysis une fois le dépôt effectué.",
+    inputSchema: {
+      format_hint: formatHint.default("auto"),
+      period_end: z.string().optional(),
+      covenants: z.array(covenant).optional(),
+      locale: z.string().default("fr"),
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  }, async (args) => {
+    const ctx = deps.ctx();
+    const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
+    if (!rl.ok && !ctx.userId) return err(rl.reason);
+    const rec = await deps.store.create({
+      status: "pending", session_id: ctx.sessionId, source: "upload", opts: { ...args },
+    });
+    const token = await deps.store.issueUploadToken(rec.id, UPLOAD_TTL_MS);
+    const upload_url = `${deps.ingestBaseUrl}/upload/${token}`;
+    const payload = {
+      upload_url, analysis_id: rec.id, expires_in: UPLOAD_TTL_MS / 1000,
+      instructions: "Déposez votre export à cette adresse (glisser-déposer), puis revenez ici et dites-moi quand c'est fait.",
+    };
+    return {
+      content: [{ type: "text" as const, text:
+        `Lien d'upload sécurisé (valable 15 min) : ${upload_url}\n\n` +
+        `Déposez-y votre export, puis dites-moi quand c'est fait ; je récupérerai l'analyse (id ${rec.id}).` }],
+      structuredContent: payload,
+    };
+  });
+
+  server.registerTool("kphi_get_analysis", {
+    title: "Récupérer une analyse K-Phi",
+    description:
+      "Récupère le résultat d'une analyse K-Phi à partir de son analysis_id (après un upload via " +
+      "kphi_request_upload, ou pour relire une analyse précédente).",
+    inputSchema: { analysis_id: z.string() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ analysis_id }) => {
+    const rec = await deps.store.get(analysis_id);
+    if (!rec) return err("Analyse introuvable ou expirée.");
+    if (rec.status === "pending")
+      return { content: [{ type: "text" as const, text: "Le fichier n'a pas encore été reçu ou l'analyse est en cours. Réessayez dans quelques secondes." }],
+               structuredContent: { status: "pending", analysis_id } };
+    if (rec.status === "error" || !rec.result) return err(`L'analyse a échoué : ${rec.error ?? "erreur inconnue"}`);
+    return present(deps, rec.id, rec.result);
+  });
+
+  server.registerTool("kphi_explain_kpi", {
+    title: "Expliquer un KPI",
+    description:
+      "Explique comment un KPI d'une analyse K-Phi a été calculé : formule, comptes utilisés, écart vs " +
+      "période précédente. À utiliser pour des questions du type « comment est calculé mon DSCR / EBITDA / DSO ? ».",
+    inputSchema: { analysis_id: z.string(), kpi_id: z.string().describe("Identifiant du KPI, ex. dscr, ebitda, dso") },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ analysis_id, kpi_id }) => {
+    const rec = await deps.store.get(analysis_id);
+    const k = rec?.result?.kpis.find(x => x.id === kpi_id);
+    if (!k) return err("KPI ou analyse introuvable.");
+    const text =
+      `${k.label} = ${fmt(k.value, k.unit)}\n` +
+      (k.formula ? `Formule : ${k.formula}\n` : "") +
+      (k.accounts_used ? `Comptes utilisés : ${k.accounts_used.join(", ")}\n` : "") +
+      (k.delta_vs_previous !== undefined ? `Variation vs période précédente : ${k.delta_vs_previous}\n` : "") +
+      (k.threshold !== undefined ? `Seuil covenant : ${k.threshold} (${k.status})\n` : "");
+    return { content: [{ type: "text" as const, text }], structuredContent: { ...k } };
+  });
+}
+
+function err(message: string) {
+  return { content: [{ type: "text" as const, text: message }], isError: true };
+}

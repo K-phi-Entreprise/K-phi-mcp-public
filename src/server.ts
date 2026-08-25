@@ -1,0 +1,97 @@
+/**
+ * Serveur MCP public K-Phi — transport Streamable HTTP, mode stateless
+ * (un McpServer + transport par requête : simple à scaler sur Render, pas d'état
+ * en mémoire à partager entre instances).
+ *
+ * Endpoints :
+ *   POST /mcp            — endpoint MCP (Claude, ChatGPT, Cursor…)
+ *   PUT  /upload/:token  — dépôt direct du fichier (lien signé, 15 min)
+ *   GET  /healthz
+ */
+import express from "express";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { registerTools } from "./tools.js";
+import { MockEngine, type AnalysisEngine } from "./engine.js";
+import { MemoryStore, type Store } from "./store.js";
+import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
+
+const PORT = Number(process.env.PORT ?? 3000);
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://k-phi.com";
+const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? `http://localhost:${PORT}`;
+const UTM_SOURCE = process.env.UTM_SOURCE ?? "mcp";
+
+// ---- Dépendances (à remplacer par les implémentations réelles) ----
+const engine: AnalysisEngine = new MockEngine();
+const store: Store = new MemoryStore();
+const limiter = new RateLimiter({ analysesPerIpPerDay: 10, analysesPerSessionPerDay: 5 });
+
+const app = express();
+app.set("trust proxy", true); // Render / reverse proxy → X-Forwarded-For
+app.use(contextMiddleware);
+
+app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
+
+// ---- Endpoint MCP ----
+app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
+  const ctx = res.locals.ctx as RequestContext;
+
+  const server = new McpServer({ name: "k-phi", version: "0.1.0" }, {
+    instructions:
+      "K-Phi analyse des exports comptables (grand livre, balance, FEC) et renvoie des KPI financiers, " +
+      "des ratios et des alertes de covenants. Utilisez kphi_analyze_ledger dès qu'un utilisateur fournit " +
+      "des données comptables et demande une analyse financière.",
+  });
+  registerTools(server, {
+    engine, store, limiter,
+    publicBaseUrl: PUBLIC_BASE_URL,
+    ingestBaseUrl: INGEST_BASE_URL,
+    ctx: () => ctx,
+    source: UTM_SOURCE,
+  });
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,   // stateless
+    enableJsonResponse: true,         // réponse JSON simple (pas de SSE) : suffisant pour des appels courts
+  });
+  res.on("close", () => { void transport.close(); void server.close(); });
+
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (e) {
+    console.error("MCP error", e);
+    if (!res.headersSent) res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error" }, id: null });
+  }
+});
+
+// GET/DELETE /mcp non supportés en stateless
+app.all("/mcp", (_req, res) => {
+  res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
+});
+
+// ---- Upload signé (gros fichiers) ----
+// En prod : générer plutôt une URL pré-signée S3/R2 et déclencher l'analyse par événement.
+app.put("/upload/:token", express.raw({ type: "*/*", limit: "500mb" }), async (req, res) => {
+  const analysisId = await store.consumeUploadToken(req.params.token as string);
+  if (!analysisId) { res.status(410).json({ error: "Lien expiré ou invalide." }); return; }
+  const rec = await store.get(analysisId);
+  if (!rec) { res.status(404).json({ error: "Analyse introuvable." }); return; }
+
+  // TODO : antivirus, persistance objet, chiffrement au repos, TTL 24 h
+  const storageKey = `uploads/${analysisId}`;
+  await store.update(analysisId, { storage_key: storageKey });
+  res.status(202).json({ analysis_id: analysisId, status: "pending" });
+
+  // Analyse asynchrone
+  try {
+    const result = await engine.analyzeFromStorage(storageKey, rec.opts);
+    await store.update(analysisId, { status: "ready", result });
+  } catch (e) {
+    await store.update(analysisId, { status: "error", error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`K-Phi MCP server listening on :${PORT}  (POST /mcp)`);
+});

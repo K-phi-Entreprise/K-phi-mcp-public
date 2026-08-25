@@ -160,7 +160,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       covenants: z.array(covenant).optional(),
       locale: z.string().default("fr"),
     },
-    annotations: { readOnlyHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async (args) => {
     deps.usage.record("tool_call:kphi_request_upload");
     /* Refus AVANT le rate-limit et AVANT store.create : pas de quota consommé

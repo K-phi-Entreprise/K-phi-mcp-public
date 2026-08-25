@@ -32,7 +32,10 @@ export class KphiHttpEngine implements AnalysisEngine {
   }
 
   async analyze(input: AnalyzeInput): Promise<AnalysisResult> {
-    const parsed = parseLedger(input.content);
+    /* period_end était accepté par l'outil puis jeté ici : le parseur datait
+       alors les fichiers sans colonne date au mois courant. Il alimente
+       maintenant l'échelle de résolution des dates (voir parse-ledger.ts). */
+    const parsed = parseLedger(input.content, undefined, { periodEnd: input.period_end });
     const sb = await this.createSandbox();
 
     // Modèle K-Phi : UNE version = UN mois, nommée YYYY-MM. C'est ce que fait
@@ -105,10 +108,22 @@ export class KphiHttpEngine implements AnalysisEngine {
   }
 
   private async importVersion(token: string, ver: string, entries: unknown[]) {
+    /* fiscal_year/period_num : renseignés depuis le nom de version YYYY-MM.
+       Sans eux, le moteur enregistre la version sans exercice ni période
+       (versions.fiscal_year NULL) et la génération de dates synthétiques
+       côté plateforme n'a pas d'ancre. Sûr par construction : analyze()
+       découpe les écritures par période AVANT chaque import, donc la
+       validation « une version = une période » du moteur ne peut pas
+       rejeter le lot. */
+    const fy = Number(ver.slice(0, 4)), pn = Number(ver.slice(5, 7));
     const r = await this.fetch("/api/gl/import", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ver, vdate: `${ver}-01`, mode: "replace", version_type: "ACTUALS", entries }),
+      body: JSON.stringify({
+        ver, vdate: `${ver}-01`, mode: "replace", version_type: "ACTUALS",
+        ...(fy >= 1900 && pn >= 1 ? { fiscal_year: fy, period_num: pn } : {}),
+        entries,
+      }),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({})) as { error?: string };

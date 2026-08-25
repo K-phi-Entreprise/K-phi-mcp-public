@@ -22,7 +22,8 @@ Variables d'environnement :
 | `PUBLIC_BASE_URL` | https://k-phi.com | base des liens `open_in_kphi_url` / `report_share_url` |
 | `INGEST_BASE_URL` | http://localhost:PORT | base des liens d'upload signés |
 | `UTM_SOURCE` | mcp | attribution |
-| `KPHI_UPLOAD_STORAGE` | *(non défini)* | backend de stockage objet pour l'upload volumineux. **Non défini → upload désactivé** : `kphi_request_upload` refuse honnêtement et `PUT /upload/:token` répond 501 (avant ce garde, le fichier était accepté puis perdu). Valeur `mock` pour tester le routage en local avec le moteur mock. |
+| `KPHI_UPLOAD_STORAGE` | *(non défini)* | backend de stockage des uploads volumineux. **Non défini → upload désactivé** (refus honnête, `PUT` → 501). `tmp` → fichiers sous `os.tmpdir()/kphi-uploads`, `tmp:/chemin` → répertoire dédié (TTL 24 h, supprimés dès l'analyse réussie). `mock` → routage seul (moteur mock). Valeur inconnue → désactivé avec avertissement : on n'accepte jamais un fichier qu'on ne saura pas relire. |
+| `KPHI_SANDBOX_MAX_ENTRIES` | 200000 | cap d'écritures de l'analyse anonyme — DOIT refléter `SANDBOX_MAX_ENTRIES` côté moteur. Dépassement → refus clair AVANT la création du sandbox (LimitError), au lieu d'un 429 à mi-import. |
 
 ## Tester dans Claude Desktop (avant référencement)
 

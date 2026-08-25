@@ -200,3 +200,20 @@ test("cap d'écritures : LimitError claire, sans préfixe « Impossible de lire 
   assert.doesNotMatch(d.text, /Impossible de lire/);
   assert.match(d.text, /limitée/);
 });
+
+/* ── Télémétrie de mapping (PR 11) ───────────────────────────────── */
+import { recordAnalysisSignals } from "../dist/tools.js";
+
+test("signaux de mapping : genre, adoption/rétrogradation, overrides — comptés ; detected partiel toléré", () => {
+  const events = [];
+  const usage = { record: (e) => events.push(e) };
+  recordAnalysisSignals(usage, { genre: "trial_balance", name_source: "adopted", overrides_applied: 2 });
+  assert.deepEqual(events.sort(), ["acct_name:adopted", "column_map_override", "genre:trial_balance"]);
+  events.length = 0;
+  recordAnalysisSignals(usage, { genre: "ledger", name_source: "mapped", overrides_applied: 0 });
+  assert.deepEqual(events, ["genre:ledger"]);
+  events.length = 0;
+  recordAnalysisSignals(usage, undefined);          /* moteur mock / ancien résultat */
+  recordAnalysisSignals(usage, { genre: "bizarre" }); /* valeur inattendue : ignorée */
+  assert.deepEqual(events, []);
+});

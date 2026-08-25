@@ -16,6 +16,20 @@ export type EventName =
   | "rate_limited"
   | "upload_unavailable"  // kphi_request_upload appelé alors que KPHI_UPLOAD_STORAGE est absent :
                           // mesure la demande réelle pour l'upload volumineux avant de le construire
+  /* ── Télémétrie de mapping : la matière du feedback loop. Chaque compteur
+     répond à une question produit : adopted élevé → synonymes à enrichir
+     (les fichiers réels portent des en-têtes qu'on ne connaît pas) ;
+     demoted → des exports mettent des mémos là où on attend des intitulés ;
+     column_map_override → l'inférence s'est trompée et l'appelant a corrigé
+     (regarder les analyses concernées : le plan corrigé est dans le store) ;
+     needs_input → des fichiers sans dates arrivent vraiment. ── */
+  | "acct_name:adopted"
+  | "acct_name:demoted"
+  | "column_map_override"
+  | "needs_input"
+  | "genre:ledger"
+  | "genre:trial_balance"
+  | "genre:unknown"
   | "conversion_click";   // clic sur open_in_kphi_url (voir server.ts, redirect /a/:id)
 
 interface DayBucket { [event: string]: number }

@@ -28,6 +28,10 @@ export interface LedgerEntry {
   entry_id: string;
   tp?: string;
   ref?: string;
+  /** Intitulé STABLE du compte (pas le mémo de la ligne). Colonne
+   *  gl_entries.header_text : 2e source des libellés d'états dans
+   *  buildPLForVer_T (après CFG.coa[acct].nm, avant le mémo). */
+  header_text?: string;
   /** Date générée (colonne période / period_end), pas lue dans le fichier.
    *  Repris tel quel par le moteur (colonne gl_entries.is_synth_date) : le
    *  GL Explorer marque ces écritures, comme pour les ERP sans dates
@@ -50,6 +54,12 @@ export interface ParseResult {
   period_to: string;
   dropped: number;         // lignes ignorées (vides, en-tête, non parsables)
   warnings: string[];
+  /** compte → intitulé stable. Sert deux usages : header_text par écriture
+   *  (libellés d'états immédiats) et, en Phase 2, l'amorçage de cfg.coa côté
+   *  moteur (source n°1 des libellés + meilleure entrée pour classifyAcct).
+   *  Construit uniquement si une colonne passe le test de dépendance
+   *  fonctionnelle compte→libellé — jamais depuis des mémos de ligne. */
+  coa_dict: Record<string, string>;
 }
 
 export class ParseError extends Error {
@@ -175,13 +185,17 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
   const header = splitLine(lines[0], delim);
   const idx = (name: string) => header.findIndex(h => h.toLowerCase().replace(/[^a-z]/g, "") === name.toLowerCase().replace(/[^a-z]/g, ""));
   const iNum = idx("EcritureNum"), iDate = idx("EcritureDate"), iAcct = idx("CompteNum"),
-        iLib = idx("EcritureLib"), iDr = idx("Debit"), iCr = idx("Credit"),
+        iLib = idx("EcritureLib"), iLibC = idx("CompteLib"), iDr = idx("Debit"), iCr = idx("Credit"),
         iAux = idx("CompAuxNum"), iRef = idx("PieceRef"), iDev = idx("Idevise"),
         iMontDev = idx("Montantdevise");
   const entries: LedgerEntry[] = [];
   const warnings: string[] = [];
   let dropped = 0;
   const ccys = new Map<string, number>();
+  /* CompteLib figurait dans FEC_COLS sans jamais être lu : les états
+     affichaient les numéros de compte. Stable par construction dans un FEC
+     (art. A.47 A-1) : premier libellé non vide par compte. */
+  const coaDict: Record<string, string> = {};
 
   for (let i = 1; i < lines.length; i++) {
     const raw = lines[i];
@@ -195,6 +209,8 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
     if (!acct || !date || (dr === 0 && cr === 0)) { dropped++; continue; }
     const ccy = (iDev >= 0 && c[iDev]) ? c[iDev].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
+    const libC = iLibC >= 0 ? (c[iLibC] ?? "").trim() : "";
+    if (libC && libC !== acct && !(acct in coaDict)) coaDict[acct] = libC;
     entries.push({
       acct, dr, cr, date, period: period(date), entity,
       desc: c[iLib] ?? "", ccy,
@@ -204,7 +220,8 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
     });
   }
   if (iMontDev >= 0) warnings.push("Montantdevise ignoré : les montants sont pris en devise de tenue (Debit/Credit).");
-  return finish("fec", entries, dropped, warnings, ccys);
+  for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
+  return finish("fec", entries, dropped, warnings, ccys, coaDict);
 }
 
 /* ------------------------------------------------------------------ */
@@ -213,6 +230,11 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
 
 const SYN: Record<string, string[]> = {
   acct:   ["compte", "comptenum", "numerocompte", "nocompte", "account", "accountnumber", "accountcode", "glaccount", "code", "acct", "konto"],
+  /* AVANT desc : sinon "accountdescription" serait happé par desc (inclusion
+     de "description") et l'intitulé du compte finirait en mémo de ligne. */
+  acct_name: ["accountname", "glaccountname", "comptelib", "libellecompte", "intitulecompte",
+              "accounttitle", "accttitle", "acctname", "accountdesc", "accountdescription",
+              "accountlabel", "kontobezeichnung", "acctdesc"],
   desc:   ["libelle", "libellé", "label", "description", "memo", "intitule", "intitulé", "narration", "ecriturelib", "desc", "descr", "text"],
   date:   ["date", "ecrituredate", "datecomptable", "dateecriture", "postingdate", "transactiondate", "datum"],
   period: ["period", "periode", "monat", "poper", "fiscalperiod", "postingperiod", "accountingperiod", "periodname"],
@@ -229,6 +251,46 @@ const SYN: Record<string, string[]> = {
 
 function normHeader(h: string): string {
   return h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+}
+
+/* ── Dépendance fonctionnelle compte → libellé ─────────────────────────
+   Un intitulé de compte est STABLE (même valeur sur toutes les lignes du
+   compte) et DISCRIMINANT (libellés distincts pour des comptes distincts).
+   Un mémo varie par ligne ; une colonne de catégorie (Asset/Revenue…) est
+   stable mais pas discriminante ; une devise est constante. Le test porte
+   sur les VALEURS, pas sur l'en-tête : il fonctionne quelle que soit la
+   langue de l'export, y compris pour des colonnes hors table de synonymes. */
+class NameCandidate {
+  private labels = new Map<string, string>();
+  private conflicts = new Set<string>();
+  private nonEmpty = 0;
+  private numericish = 0;
+  constructor(public idx: number, public mapped: boolean) {}
+  feed(acct: string, raw: string | undefined) {
+    const v = (raw ?? "").trim();
+    if (!v) return;
+    this.nonEmpty++;
+    if (/^[-\d\s.,\/]+$/.test(v) || isoDate(v)) { this.numericish++; return; }
+    const prev = this.labels.get(acct);
+    if (prev === undefined) this.labels.set(acct, v);
+    else if (prev !== v) this.conflicts.add(acct);
+  }
+  score(totalAccts: number) {
+    const named = this.labels.size;
+    const stable = named - this.conflicts.size;
+    const distinct = new Set(this.labels.values()).size;
+    const ok = named > 0 && this.nonEmpty > 0
+      && named / totalAccts >= 0.5                 /* couverture des comptes */
+      && stable / named >= 0.9                     /* stabilité : ≠ mémo */
+      && this.numericish / this.nonEmpty < 0.5     /* ≠ montants / dates */
+      && distinct / named > 0.5;                   /* discriminant (strict) : ≠ Type/Devise */
+    return { ok, stability: stable / Math.max(named, 1), coverage: named / Math.max(totalAccts, 1) };
+  }
+  dict(): Record<string, string> {
+    const d: Record<string, string> = {};
+    for (const [a, l] of this.labels) if (!this.conflicts.has(a) && l !== a) d[a] = l;
+    return d;
+  }
 }
 
 function mapHeaders(header: string[]): Partial<Record<keyof typeof SYN, number>> {
@@ -281,6 +343,15 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
       ["period_end"]);
   let synthCount = 0, periodUnreadable = 0;
 
+  /* Candidats intitulé de compte : la colonne acct_name mappée (prioritaire)
+     + toutes les colonnes non mappées (plafond : 12) — l'élection se fait
+     sur les valeurs, voir NameCandidate. */
+  const used = new Set<number>(Object.values(m) as number[]);
+  const cands: NameCandidate[] = [];
+  if (m.acct_name != null) cands.push(new NameCandidate(m.acct_name, true));
+  for (let i = 0; i < header.length && cands.length < 13; i++)
+    if (!used.has(i)) cands.push(new NameCandidate(i, false));
+
   for (let i = 1; i < lines.length; i++) {
     const raw = lines[i];
     if (!raw.trim()) { dropped++; continue; }
@@ -311,6 +382,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     if (!date && peIso) { date = peIso; synth = true; }
     if (!date) { dropped++; continue; }
     if (synth) synthCount++;
+    for (const cd of cands) cd.feed(acct, c[cd.idx]);
     const rowEntity = m.entity != null && c[m.entity] ? c[m.entity] : entity;
     const ccy = m.ccy != null && c[m.ccy] ? c[m.ccy].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
@@ -338,13 +410,35 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const after = entries.filter(e => !e._is_synth_date && e.date > peIso).length;
     if (after > 0) warnings.push(`${after} écriture(s) postérieures à period_end ${peIso} : clôture incomplète ou period_end erroné ?`);
   }
-  return finish("csv", entries, dropped, warnings, ccys);
+
+  /* ── Élection de l'intitulé de compte ── */
+  const totalAccts = new Set(entries.map(e => e.acct)).size;
+  let winner: NameCandidate | undefined;
+  const mappedCand = cands.find(cd => cd.mapped);
+  if (mappedCand && mappedCand.score(totalAccts).ok) {
+    winner = mappedCand;
+  } else {
+    if (mappedCand)
+      warnings.push(`Colonne « ${header[mappedCand.idx]} » : libellé instable par compte — traitée comme un mémo, pas comme l'intitulé du compte.`);
+    winner = cands
+      .filter(cd => !cd.mapped)
+      .map(cd => ({ cd, s: cd.score(totalAccts) }))
+      .filter(x => x.s.ok)
+      .sort((a, b) => b.s.stability - a.s.stability || b.s.coverage - a.s.coverage)[0]?.cd;
+    if (winner)
+      warnings.push(`Intitulés de compte détectés dans la colonne « ${header[winner.idx]} » (dépendance compte → libellé).`);
+  }
+  const coaDict = winner ? winner.dict() : {};
+  for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
+
+  return finish("csv", entries, dropped, warnings, ccys, coaDict);
 }
 
 /* ------------------------------------------------------------------ */
 
 function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
-                warnings: string[], ccys: Map<string, number>): ParseResult {
+                warnings: string[], ccys: Map<string, number>,
+                coaDict: Record<string, string> = {}): ParseResult {
   if (!entries.length) throw new ParseError("Aucune écriture exploitable trouvée dans le fichier.");
   const periods = entries.map(e => e.period).filter(Boolean).sort();
   const currency = [...ccys.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "EUR";
@@ -356,7 +450,7 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
     format, entries,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
-    dropped, warnings,
+    dropped, warnings, coa_dict: coaDict,
   };
 }
 

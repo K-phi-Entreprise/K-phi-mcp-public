@@ -15,16 +15,23 @@ import { registerTools } from "./tools.js";
 import { MockEngine, type AnalysisEngine } from "./engine.js";
 import { MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
+import { UsageCounter } from "./usage.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://k-phi.com";
 const INGEST_BASE_URL = process.env.INGEST_BASE_URL ?? `http://localhost:${PORT}`;
 const UTM_SOURCE = process.env.UTM_SOURCE ?? "mcp";
+// Optionnel : si défini, /stats exige ?token=... ou l'en-tête X-Stats-Token.
+// Sans ça, les compteurs d'usage (volume d'analyses, taux de conversion) sont
+// visibles publiquement — acceptable au tout début pour se motiver et itérer
+// vite, mais à définir avant que le lien /stats circule au-delà de vous.
+const STATS_TOKEN = process.env.STATS_TOKEN;
 
 // ---- Dépendances (à remplacer par les implémentations réelles) ----
 const engine: AnalysisEngine = new MockEngine();
 const store: Store = new MemoryStore();
 const limiter = new RateLimiter({ analysesPerIpPerDay: 10, analysesPerSessionPerDay: 5 });
+const usage = new UsageCounter();
 
 const app = express();
 app.set("trust proxy", true); // Render / reverse proxy → X-Forwarded-For
@@ -43,7 +50,7 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
       "des données comptables et demande une analyse financière.",
   });
   registerTools(server, {
-    engine, store, limiter,
+    engine, store, limiter, usage,
     publicBaseUrl: PUBLIC_BASE_URL,
     ingestBaseUrl: INGEST_BASE_URL,
     ctx: () => ctx,
@@ -90,6 +97,27 @@ app.put("/upload/:token", express.raw({ type: "*/*", limit: "500mb" }), async (r
   } catch (e) {
     await store.update(analysisId, { status: "error", error: e instanceof Error ? e.message : String(e) });
   }
+});
+
+// ---- Clic de conversion : compté ici, puis redirigé vers la plateforme ----
+// /a/:id doit pointer sur CE serveur (voir ingestBaseUrl dans tools.ts), pas
+// sur k-phi.com directement, sinon le clic ne laisse aucune trace.
+// TODO côté app K-Phi : la cible réelle doit créer un compte par magic link
+// et rattacher analysisId — à date cette route n'existe peut-être pas encore
+// sur k-phi.com, d'où le repli sur PUBLIC_BASE_URL tel quel en attendant.
+app.get("/a/:id", (req, res) => {
+  usage.record("conversion_click");
+  const qs = new URLSearchParams(req.query as Record<string, string>).toString();
+  res.redirect(302, `${PUBLIC_BASE_URL}/a/${req.params.id}${qs ? `?${qs}` : ""}`);
+});
+
+// ---- Compteurs d'usage (volume, conversion) — protégé si STATS_TOKEN est défini ----
+app.get("/stats", (req, res) => {
+  if (STATS_TOKEN) {
+    const supplied = (req.query.token as string | undefined) ?? req.header("X-Stats-Token");
+    if (supplied !== STATS_TOKEN) { res.status(401).json({ error: "Token manquant ou invalide." }); return; }
+  }
+  res.json(usage.snapshot());
 });
 
 app.listen(PORT, () => {

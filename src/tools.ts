@@ -7,11 +7,13 @@ import { z } from "zod";
 import type { AnalysisEngine, AnalysisResult } from "./engine.js";
 import type { Store } from "./store.js";
 import type { RateLimiter, RequestContext } from "./ratelimit.js";
+import type { UsageCounter } from "./usage.js";
 
 export interface ToolDeps {
   engine: AnalysisEngine;
   store: Store;
   limiter: RateLimiter;
+  usage: UsageCounter;
   publicBaseUrl: string;   // https://k-phi.com
   ingestBaseUrl: string;   // https://mcp.k-phi.com (ou ingest.k-phi.com)
   ctx: () => RequestContext;
@@ -33,7 +35,9 @@ function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
   const payload = {
     ...r,
     analysis_id: analysisId,
-    open_in_kphi_url: `${deps.publicBaseUrl}/a/${analysisId}?${utm}`,
+    // Passe par /a/:id sur CE serveur (pas k-phi.com directement) pour que le clic
+    // soit compté avant la redirection — voir server.ts.
+    open_in_kphi_url: `${deps.ingestBaseUrl}/a/${analysisId}?${utm}`,
     report_share_url: `${deps.publicBaseUrl}/r/${analysisId}`,
   };
   const breaches = r.kpis.filter(k => k.status === "breach").length;
@@ -82,11 +86,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async (args) => {
+    deps.usage.record("tool_call:kphi_analyze_ledger");
     const ctx = deps.ctx();
     if (Buffer.byteLength(args.content, "utf8") > MAX_INLINE_BYTES)
       return err("Fichier trop volumineux pour l'analyse directe. Utilisez kphi_request_upload pour obtenir un lien d'upload sécurisé.");
     const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
-    if (!rl.ok && !ctx.userId) return err(rl.reason);
+    if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }
 
     const rec = await deps.store.create({
       status: "pending", session_id: ctx.sessionId, source: "inline",
@@ -95,10 +100,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     try {
       const result = await deps.engine.analyze({ ...args });
       await deps.store.update(rec.id, { status: "ready", result });
+      deps.usage.record("analysis_ready");
       return present(deps, rec.id, result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await deps.store.update(rec.id, { status: "error", error: msg });
+      deps.usage.record("analysis_error");
       return err(`Impossible de lire ce fichier : ${msg}. Vérifiez qu'il s'agit d'un export comptable (grand livre, balance, FEC) et précisez format_hint si possible.`);
     }
   });
@@ -117,9 +124,10 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     },
     annotations: { readOnlyHint: false, openWorldHint: false },
   }, async (args) => {
+    deps.usage.record("tool_call:kphi_request_upload");
     const ctx = deps.ctx();
     const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
-    if (!rl.ok && !ctx.userId) return err(rl.reason);
+    if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }
     const rec = await deps.store.create({
       status: "pending", session_id: ctx.sessionId, source: "upload", opts: { ...args },
     });
@@ -145,6 +153,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     inputSchema: { analysis_id: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ analysis_id }) => {
+    deps.usage.record("tool_call:kphi_get_analysis");
     const rec = await deps.store.get(analysis_id);
     if (!rec) return err("Analyse introuvable ou expirée.");
     if (rec.status === "pending")
@@ -162,6 +171,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     inputSchema: { analysis_id: z.string(), kpi_id: z.string().describe("Identifiant du KPI, ex. dscr, ebitda, dso") },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ analysis_id, kpi_id }) => {
+    deps.usage.record("tool_call:kphi_explain_kpi");
     const rec = await deps.store.get(analysis_id);
     const k = rec?.result?.kpis.find(x => x.id === kpi_id);
     if (!k) return err("KPI ou analyse introuvable.");

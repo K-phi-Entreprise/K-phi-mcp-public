@@ -59,7 +59,10 @@ export class KphiHttpEngine implements AnalysisEngine {
     /* period_end était accepté par l'outil puis jeté ici : le parseur datait
        alors les fichiers sans colonne date au mois courant. Il alimente
        maintenant l'échelle de résolution des dates (voir parse-ledger.ts). */
-    const parsed = parseLedger(input.content, undefined, { periodEnd: input.period_end });
+    const parsed = parseLedger(input.content, undefined, {
+      periodEnd: input.period_end,
+      columnMap: input.column_map as never,
+    });
     const cap = this.cfg.maxSandboxEntries ?? Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000);
     if (parsed.entries.length > cap)
       throw new LimitError(
@@ -389,7 +392,9 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   return {
     detected: { format: parsed.format, chart_of_accounts: "auto", currency: parsed.currency,
                 period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length,
-                genre: parsed.genre },
+                genre: parsed.genre, column_map: parsed.column_map,
+                unmapped_headers: parsed.unmapped_headers, name_source: parsed.name_source,
+                overrides_applied: parsed.overrides_applied },
     kpis, alerts, notes,
     summary_markdown: buildSummary(kpis, parsed, alerts),
   };

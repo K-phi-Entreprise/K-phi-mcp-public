@@ -79,7 +79,41 @@ function fmt(v: number, unit: string): string {
   return `${v} ${unit}`;
 }
 
+const MAPPING_GUIDE = `# K-Φ — Guide de mapping (column_map)
+
+Quand l'inférence se trompe, rappelez kphi_analyze_ledger avec
+column_map: { "champ": "En-tête exact du fichier" }. Champs : acct,
+acct_name, date, period, fy, dr, cr, amount, dc_ind, entity, ccy, desc, tp,
+ref, id. Clé spéciale amount_mode : dual | signed | signed_inv | single.
+Le plan retenu est renvoyé dans detected.column_map (+ unmapped_headers).
+
+Pièges par ERP (encodés dans le parseur, rappelés ici pour l'appelant) :
+- **SAP FBL3N** : DMBTR/WRBTR toujours positifs — direction via SHKZG (S/H).
+  Jamais amount_mode signed.
+- **SAP ACDOCA** : HSL SIGNÉ (positif = débit) ; pas d'indicateur ; POPER
+  13-16 = périodes spéciales valides.
+- **Oracle** : préférer ACCOUNTED_DR/CR (devise fonctionnelle) à ENTERED_*.
+- **D365 F&O** : compte = MAINACCOUNTID ; ACCOUNTDISPLAYVALUE concatène les
+  dimensions. Business Central : montant signé unique.
+- **NetSuite** : « Account » = NOM ; le code est « Account Number ». « Name »
+  = tiers, pas le compte. Filtrer Is Posting = Yes.
+- **QuickBooks** : « Balance » = solde CUMULÉ (jamais un montant) ; « Split »
+  = contrepartie ; comptes souvent en noms.
+- **Xero** : Gross/GST = TTC/taxe (double-comptage) ; compte = AccountCode.
+- **Sage X3** : AMTLOC + SENS (D/C) ; convention credit-positive possible →
+  amount_mode signed_inv. **Intacct** : LOCATIONID = ENTITÉ.
+- **HFM** : pas de dates (Year + Period → dates synthétiques) ; filtrer
+  Scenario = Actual et View = Periodic (YTD = cumul).
+- **FEC** : format normé, détecté seul ; CompteLib = intitulé, EcritureLib = mémo.
+`;
+
 export function registerTools(server: McpServer, deps: ToolDeps) {
+  server.registerResource("mapping-guide", "kphi://mapping-guide", {
+    title: "Guide de mapping K-Φ",
+    description: "Champs de column_map et pièges connus par ERP — à consulter avant de corriger un mapping.",
+    mimeType: "text/markdown",
+  }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: "text/markdown", text: MAPPING_GUIDE }] }));
+
 
   server.registerTool("kphi_analyze_ledger", {
     title: "Analyser un grand livre (K-Φ)",
@@ -252,7 +286,8 @@ export function describeAnalysisError(e: unknown, analysisId: string):
   if (e instanceof NeedsInputError)
     return {
       text: `${msg}\n\nRelancez kphi_analyze_ledger avec le même contenu en ajoutant ` +
-            `le(s) paramètre(s) : ${e.needs.join(", ")}.`,
+            `le(s) paramètre(s) : ${e.needs.join(", ")}. Si une colonne du fichier porte cette ` +
+            `information sous un autre nom, indiquez-la via column_map (guide : kphi://mapping-guide).`,
       needs: e.needs,
     };
   if (e instanceof LimitError)

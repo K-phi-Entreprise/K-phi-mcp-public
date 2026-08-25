@@ -172,3 +172,58 @@ test("corpus : toutes les périodes viennent du FICHIER (2025), jamais du mois d
       assert.ok(e.period.startsWith("2025"), `période hors fichier : ${e.period}`);
   }
 });
+
+/* ── column_map : le contrat inspectable/corrigeable (PR 10) ─────── */
+
+test("column_map en sortie : plan final + en-têtes non mappés + provenance des intitulés", () => {
+  const r = parseLedger(`Date,Account,AccountName,Mystery,Debit,Credit
+2025-01-31,10100,Cash,x1,10.00,0.00
+2025-01-31,40000,Sales,x2,0.00,10.00
+`);
+  assert.equal(r.column_map.acct, "Account");
+  assert.equal(r.column_map.acct_name, "AccountName");
+  assert.equal(r.column_map.dr, "Debit");
+  assert.deepEqual(r.unmapped_headers, ["Mystery"]);
+  assert.equal(r.name_source, "mapped");
+  assert.equal(r.overrides_applied, 0);
+});
+
+test("column_map en entrée : l'override prime sur l'inférence et libère la colonne volée", () => {
+  /* « Konto » serait inféré acct ; l'appelant sait que le vrai compte est « Ref » */
+  const r = parseLedger(`Date,Konto,Ref,Debit,Credit
+2025-01-31,WRONG,10100,10.00,0.00
+2025-01-31,WRONG,40000,0.00,10.00
+`, undefined, { columnMap: { acct: "Ref" } });
+  assert.equal(r.entries[0].acct, "10100", "le champ forcé prime");
+  assert.equal(r.overrides_applied, 1);
+  assert.ok(r.warnings.some(w => /forcés par column_map/.test(w)));
+});
+
+test("column_map : en-tête introuvable ou champ inconnu → avertissement, jamais un crash", () => {
+  const r = parseLedger(`Date,Account,Debit,Credit
+2025-01-31,10100,10.00,0.00
+2025-01-31,40000,0.00,10.00
+`, undefined, { columnMap: { acct: "Nonexistent", frobnicate: "Account" } });
+  assert.ok(r.warnings.some(w => /introuvable/.test(w)));
+  assert.ok(r.warnings.some(w => /champ inconnu/.test(w)));
+  assert.equal(r.entries[0].acct, "10100", "l'inférence reste en place");
+});
+
+test("amount_mode signed_inv forcé : positif → crédit (convention PCG/Cegid)", () => {
+  const r = parseLedger(`Date,Compte,Montant
+2025-01-31,706000,500.00
+2025-01-31,411000,-500.00
+`, undefined, { columnMap: { amount_mode: "signed_inv" } });
+  const rev = r.entries.find(e => e.acct === "706000");
+  assert.equal(rev.cr, 500, "le produit est bien au crédit");
+  assert.equal(rev.dr, 0);
+});
+
+test("un override lève même une colonne-piège (l'appelant assume)", () => {
+  const r = parseLedger(`Date,Account,Debit,Credit,Balance
+2025-01-31,10100,0,0,10.00
+2025-01-31,40000,0,0,-10.00
+`, undefined, { columnMap: { amount: "Balance", amount_mode: "signed" } });
+  assert.equal(r.entries.length, 2);
+  assert.equal(r.entries[0].dr, 10);
+});

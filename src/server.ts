@@ -112,10 +112,15 @@ app.put("/upload/:token", express.raw({ type: "*/*", limit: "500mb" }), async (r
 // TODO côté app K-Phi : la cible réelle doit créer un compte par magic link
 // et rattacher analysisId — à date cette route n'existe peut-être pas encore
 // sur k-phi.com, d'où le repli sur PUBLIC_BASE_URL tel quel en attendant.
-app.get("/a/:id", (req, res) => {
+app.get("/a/:id", async (req, res) => {
   usage.record("conversion_click");
-  const qs = new URLSearchParams(req.query as Record<string, string>).toString();
-  res.redirect(302, `${PUBLIC_BASE_URL}/a/${req.params.id}${qs ? `?${qs}` : ""}`);
+  const q = new URLSearchParams(req.query as Record<string, string>);
+  // Le tenant sandbox qui héberge l'analyse : c'est lui que la plateforme doit
+  // rattacher au compte créé par magic link. Absent avec le mock.
+  const rec = await store.get(req.params.id);
+  const sb = rec?.result?.sandbox;
+  if (sb) { q.set("tenant", sb.tenant_id); q.set("ver", sb.ver); }
+  res.redirect(302, `${PUBLIC_BASE_URL}/a/${req.params.id}?${q.toString()}`);
 });
 
 // ---- Compteurs d'usage (volume, conversion) — protégé si STATS_TOKEN est défini ----

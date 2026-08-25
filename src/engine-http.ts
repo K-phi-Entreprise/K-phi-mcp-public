@@ -1,17 +1,18 @@
 /**
  * KphiHttpEngine — implémentation réelle de AnalysisEngine (Option B, variante
- * "tenant sandbox unique + une version par analyse").
+ * "un tenant par analyse", nommé MCP-<XYZ>-<YYYYMMDDHHmmss> côté moteur).
  *
  * Flux par analyse :
  *   1. parse local (parse-ledger.ts) → entries[] normalisées
- *   2. POST /api/internal/sandbox/token      → JWT de service (secret partagé)   [nouveau côté moteur]
- *   3. POST /api/gl/import  { ver: anon_<id>, mode: replace, entries }           [existe]
- *   4. GET  /api/statements?ver=anon_<id>    → kpi, ratios, pl, bs               [existe]
- *   5. DELETE /api/versions/anon_<id>        → purge                              [existe]
- *      (+ cron côté moteur qui purge toute version anon_* > 24 h : filet)
+ *   2. POST /api/internal/sandbox/tenant     → { tenantId, name, token }         [nouveau côté moteur]
+ *   3. POST /api/gl/import  { ver, mode: replace, entries }                      [existe]
+ *   4. GET  /api/statements?ver=…            → kpi, ratios, pl, bs               [existe]
  *
- * Isolation : chaque requête au moteur est scopée par `ver`. Rien ici ne lit
- * jamais "toutes les versions". C'est le contrat à préserver côté moteur.
+ * Pas de purge après lecture : le tenant est conservé (24 h par défaut, cron
+ * côté moteur) pour que le prospect puisse le RÉCLAMER depuis /a/:analysis_id.
+ * La conversion = ajouter un utilisateur à ce tenant, sans déplacer de données.
+ *
+ * Isolation : un tenant = une analyse = un schéma Postgres. Rien à partager.
  */
 import type { AnalysisEngine, AnalysisResult, AnalyzeInput, Kpi } from "./engine.js";
 import { parseLedger, ParseError } from "./parse-ledger.js";
@@ -20,30 +21,26 @@ export interface KphiHttpEngineConfig {
   baseUrl: string;          // https://k-phi.com (ou l'URL Render du moteur)
   serviceSecret: string;    // = KPHI_SANDBOX_SECRET côté moteur
   timeoutMs?: number;       // défaut 60 s
-  purgeAfterRead?: boolean; // défaut true
 }
 
 export class KphiHttpEngine implements AnalysisEngine {
   private timeout: number;
-  private purge: boolean;
 
   constructor(private cfg: KphiHttpEngineConfig) {
     if (!cfg.baseUrl || !cfg.serviceSecret) throw new Error("KphiHttpEngine: baseUrl et serviceSecret requis");
     this.timeout = cfg.timeoutMs ?? 60_000;
-    this.purge = cfg.purgeAfterRead ?? true;
   }
 
   async analyze(input: AnalyzeInput): Promise<AnalysisResult> {
     const parsed = parseLedger(input.content);
-    const ver = `anon_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    const token = await this.serviceToken();
-    try {
-      await this.importVersion(token, ver, parsed.entries, parsed.period_to);
-      const stmts = await this.statements(token, ver);
-      return toAnalysisResult(parsed, stmts, input);
-    } finally {
-      if (this.purge) this.deleteVersion(token, ver).catch(e => console.error("sandbox purge failed", ver, e));
-    }
+    const sb = await this.createSandbox();
+    const ver = parsed.period_to ? `ACT_${parsed.period_to.replace("-", "")}` : "ACT_IMPORT";
+    await this.importVersion(sb.token, ver, parsed.entries, parsed.period_to);
+    const stmts = await this.statements(sb.token, ver);
+    const result = toAnalysisResult(parsed, stmts, input);
+    // Rattachement pour la conversion : /a/:analysis_id → magic link → user dans CE tenant.
+    result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver };
+    return result;
   }
 
   async analyzeFromStorage(_storageKey: string, _opts: Omit<AnalyzeInput, "content">): Promise<AnalysisResult> {
@@ -53,10 +50,22 @@ export class KphiHttpEngine implements AnalysisEngine {
 
   /* ----------------------------------------------------------------- */
 
-  private async serviceToken(): Promise<string> {
-    const r = await this.fetch("/api/internal/sandbox/token", {
+  private async createSandbox(): Promise<{ tenantId: string; name: string; token: string }> {
+    const r = await this.fetch("/api/internal/sandbox/tenant", {
       method: "POST",
       headers: { "X-Sandbox-Secret": this.cfg.serviceSecret },
+    });
+    const j = await r.json() as { tenantId?: string; name?: string; token?: string; error?: string };
+    if (!r.ok || !j.token || !j.tenantId) throw new Error(`sandbox tenant: ${r.status} ${j.error ?? ""}`);
+    return { tenantId: j.tenantId, name: j.name ?? "", token: j.token };
+  }
+
+  /** Jeton pour relire un tenant sandbox existant (ex. après upload asynchrone). */
+  async tokenFor(tenantId: string): Promise<string> {
+    const r = await this.fetch("/api/internal/sandbox/token", {
+      method: "POST",
+      headers: { "X-Sandbox-Secret": this.cfg.serviceSecret, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId }),
     });
     const j = await r.json() as { token?: string; error?: string };
     if (!r.ok || !j.token) throw new Error(`sandbox token: ${r.status} ${j.error ?? ""}`);
@@ -85,13 +94,6 @@ export class KphiHttpEngine implements AnalysisEngine {
     return j;
   }
 
-  private async deleteVersion(token: string, ver: string) {
-    const r = await this.fetch(`/api/versions/${encodeURIComponent(ver)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!r.ok && r.status !== 404) throw new Error(`delete version: ${r.status}`);
-  }
 
   private async fetch(path: string, init: RequestInit): Promise<Response> {
     const ctrl = new AbortController();

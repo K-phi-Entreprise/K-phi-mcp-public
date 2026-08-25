@@ -48,6 +48,9 @@ export interface AnalysisResult {
   kpis: Kpi[];
   alerts: string[];
   summary_markdown: string;
+  /** Rempli par le moteur réel : le tenant K-Phi qui héberge cette analyse,
+   *  à réclamer par le prospect (conversion). Absent avec le mock. */
+  sandbox?: { tenant_id: string; tenant_name: string; ver: string };
 }
 
 export interface AnalysisEngine {

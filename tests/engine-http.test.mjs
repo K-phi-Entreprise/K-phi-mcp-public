@@ -17,7 +17,7 @@ const LEDGER = `Date,Account,AccountName,Debit,Credit
 
 /** Moteur simulé. failImports = nombre de 500 à servir sur /api/gl/import. */
 function mockEngine({ failImports = 0 } = {}) {
-  const calls = { tenant: 0, imports: [], statements: 0, openLink: 0 };
+  const calls = { tenant: 0, imports: [], statements: 0, openLink: 0, fc: [] };
   let importFails = failImports;
   globalThis.fetch = async (url, init) => {
     const u = String(url);
@@ -35,7 +35,22 @@ function mockEngine({ failImports = 0 } = {}) {
     }
     if (u.includes("/api/statements")) {
       calls.statements++;
-      return ok({ kpi: { "Net Revenue": 150, "Net Income": 150 }, ratios: { dso: 30, _intExpPure: 500, _ltDebt: 8000 } });
+      const q = new URL(u, "http://x").searchParams;
+      const base = { kpi: { "Net Revenue": 150, "Net Income": 150 },
+        ratios: { dso: 30, _intExpPure: 500, _ltDebt: 8000,
+          _dsoByEntity: { E1: { ar: 10, rev: 100, dso: 36.5, _denomSource: "gl" } },
+          _dpoByEntity: { E1: { ap: 5, cogs: 50, dpo: 42.1, _denomSource: "gl" } },
+          _dsoByBU: { B1: { ar: 10, rev: 100, dso: 36.5, _denomSource: "fallback" } },
+          _dpoByBU: {} } };
+      if (q.get("fc")) {
+        calls.fc.push({ entity: q.get("entity"), bu: q.get("bu"), horizon: q.get("horizon") });
+        const scoped = q.get("entity") === "E1" ? 41 : q.get("bu") === "B1" ? 39 : 37;
+        return ok({ ...base,
+          fc: [{ period: "2025-04", sales: 120, impliedDSO: scoped, impliedDPO: 40, collections: 100,
+                 payroll: 30, opex: 20, interest: 2, _flowDetails: { heavy: true }, _bgt: { x: 1 } }],
+          fcBlocked: null });
+      }
+      return ok(base);
     }
     if (u.includes("/api/internal/sandbox/open-link")) {
       calls.openLink++;
@@ -273,4 +288,22 @@ test("covenants de bout en bout : Gearing évalué, dette NETTE calculée (dette
   }
   assert.ok(r.alerts.some(a => /« Machin »/.test(a) && /Identifiants acceptés/.test(a) && /net_debt_ebitda/.test(a)),
     "l'inconnu enseigne la liste au lieu de « non calculable »");
+});
+
+/* ── Forecast v1.1 : relais par périmètre, verbatim moteur (SPEC ★) ── */
+test("forecast : appels fc par scope (global + entité + BU), lignes moteur relayées, champs lourds élagués", async () => {
+  const calls = mockEngine();
+  const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  assert.equal(r.report_version, "1.1");
+  assert.ok(r.forecast, "result.forecast présent");
+  /* la position porte fc=1 ; chaque entité et BU a son appel scopé */
+  assert.ok(calls.fc.some(c => !c.entity && !c.bu), "appel global fc");
+  assert.ok(calls.fc.some(c => c.entity === "E1"), "appel scopé entité");
+  const g = r.forecast.global.series[0];
+  assert.equal(g.impliedDSO, 37, "ligne moteur relayée telle quelle (global)");
+  assert.equal(r.forecast.by_entity.E1.series[0].impliedDSO, 41, "projection DE L'ENTITÉ, pas du groupe");
+  assert.equal(g._flowDetails, undefined, "champs privés lourds élagués");
+  /* méthodes : DSO/DPO observés GL avec provenance (critère 3) */
+  assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 37, source: "gl_observed" });
+  assert.equal(r.forecast.methods.dso_by_bu.B1.source, "fallback");
 });

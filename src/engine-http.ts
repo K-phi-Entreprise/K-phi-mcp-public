@@ -102,7 +102,7 @@ export class KphiHttpEngine implements AnalysisEngine {
 
     // Bilan = position cumulée jusqu'au dernier mois (asOf). Ratios de position
     // (trésorerie, dette, liquidité, DSO/DPO) viennent de cette lecture.
-    const position = await this.statements(sb.token, { asOf: last });
+    const position = await this.statements(sb.token, { asOf: last, fc: true, horizon: 6 });
     // P&L = flux : le moteur le rend par mois quoi qu'il arrive en mode cumulé
     // (voir routes/statements.js, scope.pers). Pour un diagnostic d'exercice on
     // somme les flux mensuels ici — arithmétiquement exact, et cohérent avec ce
@@ -111,7 +111,31 @@ export class KphiHttpEngine implements AnalysisEngine {
       ? await Promise.all(periods.map(per => this.statements(sb.token, { ver: per })))
       : [position];
 
-    const result = toAnalysisResult(parsed, position, monthly, input);
+    /* ── Forecast PAR PÉRIMÈTRE (SPEC ★, critères 2/3/5) : un appel fc par
+       scope — runEngine tourne sur les lignes du scope, l'impliedDSO/DPO des
+       lignes est celui DU SCOPE, dérivé du GL. Le connecteur RELAIE, il ne
+       calcule rien. Plafond 12 appels (8 entités + 4 BU) pour rester ~1 s. */
+    const _posRa = (position.ratios ?? {}) as Record<string, Record<string, unknown>>;
+    /* Périmètres = union parseur ∪ moteur : le moteur sait quelles entités
+       vivent dans le GL même quand le parseur a rangé la colonne autrement. */
+    const entScopes = [...new Set([
+      ...parsed.entries.map(e => e.entity).filter((x): x is string => !!x),
+      ...Object.keys(_posRa["_dsoByEntity"] ?? {}),
+    ])].slice(0, 8);
+    const buScopes = Object.keys(_posRa["_dsoByBU"] ?? {}).slice(0, 4);
+    const fcScope = async (p: { entity?: string; bu?: string }) => {
+      try { const s = await this.statements(sb.token, { asOf: last, ...p, fc: true, horizon: 6 });
+            return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null }; }
+      catch { return { fc: [], blocked: { reason: "scope_call_failed" } }; }
+    };
+    const [entFc, buFc] = await Promise.all([
+      Promise.all(entScopes.map(en => fcScope({ entity: en }))),
+      Promise.all(buScopes.map(b => fcScope({ bu: b }))),
+    ]);
+
+    const result = toAnalysisResult(parsed, position, monthly, input, periods);
+    result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
+    result.report_version = "1.1";
     // Lien signé 24 h, lecture seule, ouvre le tenant dans l'app sans login.
     const open_url = await this.openLink(sb.tenantId).catch(e => { console.error("open-link failed", e); return undefined; });
     result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last, open_url };
@@ -185,9 +209,12 @@ export class KphiHttpEngine implements AnalysisEngine {
     }
   }
 
-  private async statements(token: string, scope: { ver?: string; asOf?: string }): Promise<StatementsPayload> {
+  private async statements(token: string, scope: { ver?: string; asOf?: string; entity?: string; bu?: string; fc?: boolean; horizon?: number }): Promise<StatementsPayload> {
     const qs = new URLSearchParams();
     if (scope.asOf) qs.set("asOf", scope.asOf); else if (scope.ver) qs.set("ver", scope.ver);
+    if (scope.entity) qs.set("entity", scope.entity);
+    if (scope.bu) qs.set("bu", scope.bu);
+    if (scope.fc) { qs.set("fc", "1"); qs.set("horizon", String(scope.horizon ?? 6)); }
     const r = await this.fetchRetry(`/api/statements?${qs.toString()}`, { headers: { Authorization: `Bearer ${token}` } }, "statements");
     const j = await r.json() as StatementsPayload & { error?: string; message?: string };
     if (!r.ok) throw new EngineError(`statements: ${r.status} ${j.error ?? ""} ${j.message ?? ""}`.trim(), r.status);
@@ -234,6 +261,8 @@ export class KphiHttpEngine implements AnalysisEngine {
 
 interface StatementsPayload {
   kpi?: Record<string, unknown>;
+  fc?: Array<Record<string, unknown>>;
+  fcBlocked?: { reason?: string; kind?: string | null; period?: string | null } | null;
   ratios?: Record<string, unknown> | null;
   pl?: Array<{ cat?: string; nm?: string; amt?: number; [k: string]: unknown }>;
   bs?: Array<{ cat?: string; nm?: string; amt?: number }>;
@@ -326,6 +355,40 @@ export function resolveCovenantMetric(name: string): { id: string; net?: boolean
   /* id canonique tel quel ("net_debt_ebitda" → normalisé sans underscores) */
   for (const spec of KPI_SPEC) if (_covNorm(spec.id) === n || _covNorm(spec.label) === n) return { id: spec.id };
   return null;
+}
+
+/* Relais des lignes FC_PROJ : champs moteur conservés tels quels (critère 5 :
+   zéro calcul MCP) ; seuls les champs privés lourds (_flowDetails, _bgt…)
+   sont élagués pour garder le résultat persisté léger. */
+const FC_KEEP = ["period", "sales", "amtSource", "arOpen", "collections", "arClose", "impliedDSO",
+  "purchases", "apOpen", "payments", "apClose", "impliedDPO", "payroll", "opex", "tax", "interest"] as const;
+function slimFc(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return rows.map(r => { const o: Record<string, unknown> = {}; for (const k of FC_KEEP) if (k in r) o[k] = r[k]; return o; });
+}
+type WcMap = Record<string, { dso?: number; dpo?: number; _denomSource?: string; [k: string]: unknown }>;
+export function buildForecast(position: { fc?: Array<Record<string, unknown>>; fcBlocked?: unknown; ratios?: Record<string, unknown> | null },
+                              ents: string[], entFc: Array<{ fc: Array<Record<string, unknown>>; blocked: unknown }>,
+                              bus: string[], buFc: Array<{ fc: Array<Record<string, unknown>>; blocked: unknown }>) {
+  const ra = (position.ratios ?? {}) as Record<string, WcMap>;
+  const meth = (m: WcMap | undefined, key: "dso" | "dpo") => {
+    const out: Record<string, { value: number; source: string }> = {};
+    for (const [k, v] of Object.entries(m ?? {})) {
+      const val = (v as Record<string, unknown>)[key];
+      if (typeof val === "number" && isFinite(val))
+        out[k] = { value: Math.round(val), source: v._denomSource === "gl" ? "gl_observed" : "fallback" };
+    }
+    return out;
+  };
+  return {
+    horizon_months: 6,
+    global: { series: slimFc(position.fc ?? []), blocked: position.fcBlocked ?? null },
+    by_entity: Object.fromEntries(ents.map((e, i) => [e, { series: slimFc(entFc[i].fc), blocked: entFc[i].blocked }])),
+    by_bu: Object.fromEntries(bus.map((b, i) => [b, { series: slimFc(buFc[i].fc), blocked: buFc[i].blocked }])),
+    methods: {
+      dso_by_entity: meth(ra._dsoByEntity, "dso"), dpo_by_entity: meth(ra._dpoByEntity, "dpo"),
+      dso_by_bu: meth(ra._dsoByBU, "dso"), dpo_by_bu: meth(ra._dpoByBU, "dpo"),
+    },
+  };
 }
 
 const FLOW_IDS = new Set(["revenue", "gross_profit", "ebitda", "operating_income", "net_income"]);

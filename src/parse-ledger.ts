@@ -496,7 +496,11 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
       if (!f.keep.test((c[f.idx] ?? "").trim())) { f.removed++; rowFiltered = true; break; }
     }
     if (rowFiltered) continue;
-    const acct = (c[m.acct] ?? "").trim();
+    /* "68000.0" : artefact de format (pandas/Excel float), pas un compte.
+       Non normalisé, il fausse la détection de plan comptable côté moteur
+       (longueur ≥ 6 → classifieur 6-digits/SAP → 68000 lu comme dotations,
+       EBITDA surévalué — vu en production le 2026-08-25). */
+    const acct = (c[m.acct] ?? "").trim().replace(/^(\d+)\.0+$/, "$1");
     if (!acct || /^total/i.test(acct)) { dropped++; continue; }
     let dr = 0, cr = 0;
     if (indicatorMode) {

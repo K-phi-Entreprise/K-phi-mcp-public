@@ -115,6 +115,8 @@ export function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
   const payload = {
     ...r,
     analysis_id: analysisId,
+    /* champ stable et explicite pour les clients : l'URL du rapport */
+    analysis_url: `${deps.ingestBaseUrl}/a/${analysisId}`,
     // Passe par /a/:id sur CE serveur (pas k-phi.com directement) pour que le clic
     // soit compté avant la redirection — voir server.ts.
     open_in_kphi_url: `${deps.ingestBaseUrl}/a/${analysisId}`,
@@ -184,6 +186,15 @@ Pièges par ERP (encodés dans le parseur, rappelés ici pour l'appelant) :
 - **HFM** : pas de dates (Year + Period → dates synthétiques) ; filtrer
   Scenario = Actual et View = Periodic (YTD = cumul).
 - **FEC** : format normé, détecté seul ; CompteLib = intitulé, EcritureLib = mémo.
+
+## Format compact recommandé (fichiers > 2 Mo)
+Une ligne par (entité, mois, compte) : Entity, Period (ou Date fin de mois),
+Account, AccountName, Debit, Credit. Ce format est détecté comme BALANCE :
+les KPI de flux fins (DSO/DPO/DIO exacts, DSCR) sont bornés en conséquence.
+N'ajoutez PAS de colonnes de référence (Journal, Document No.) à un agrégat :
+elles le font ressembler à un grand livre et élargissent à tort les KPI
+annoncés. Gardez AccountName — c'est la source des intitulés et un signal de
+classification.
 `;
 
 /** Signaux de mapping → compteurs /stats. Exportée pour être testable sans

@@ -158,7 +158,22 @@ export function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
     (r.notes.length ? `\n<details><summary>À affiner si besoin (dans K-Φ, pas une erreur)</summary>\n\n${r.notes.map(n => `- ${n}`).join("\n")}\n</details>\n` : "") +
     `\n🔗 Rappel : [analyse complète K-Φ](${payload.open_in_kphi_url}) · valable 24 h.`;
   return {
-    content: [{ type: "text" as const, text }],
+    content: [
+      { type: "text" as const, text },
+      /* Le lien comme OBJET DU PROTOCOLE, pas comme prose : un bloc
+         resource_link est rendu nativement par les clients MCP (carte
+         cliquable), sans dépendre du modèle relais ni lui demander quoi
+         que ce soit — la seule voie conforme au principe « tool output
+         is data ». Le même URL vit aussi dans structuredContent.analysis_url
+         pour les intégrations. */
+      {
+        type: "resource_link" as const,
+        uri: payload.analysis_url,
+        name: "Rapport K-Φ — analyse complète",
+        description: "Dashboard, bilan, P&L, flux, 30 KPI. Lien personnel, valable 24 h, sans compte.",
+        mimeType: "text/html",
+      },
+    ],
     structuredContent: payload,
   };
 }

@@ -329,6 +329,42 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   if (rev && ni !== undefined) set("net_margin", ni / rev);
   if (ebitda && debt !== undefined) set("net_debt_ebitda", debt / ebitda);
   if (equity && ni !== undefined) set("roe", ni / equity);
+
+  /* Couverture des intérêts & DSCR — MÊME base exercice que les autres ratios
+     dérivés ci-dessus (retour terrain n°4 : la valeur position était le ratio
+     du DERNIER MOIS avec un dénominateur en résultat financier NET — les
+     gains de change compensaient les intérêts : 15,9x affiché contre 5,9x
+     réel). Numérateur : EBITDA exercice déjà sommé ; dénominateur : intérêts
+     PURS sommés sur les mois (_intExpPure, repli _intExp). DSCR sans
+     échéancier de principal = approximation documentée (+10 % de la dette
+     court terme, convention moteur), signalée en note. */
+  const F = (x: number) => Math.round(x).toLocaleString("fr-FR");
+  let intFY = 0, intSeen = false;
+  for (const m of monthly) {
+    const x = pick({ ...(m.ratios ?? {}) } as Record<string, unknown>, ["_intExpPure", "_intExp"]);
+    if (x !== undefined) { intFY += x; intSeen = true; }
+  }
+  const ltDebt = pick(posSrc, ["_ltDebt"]);
+  const stDebt = debt !== undefined && ltDebt !== undefined ? Math.max(0, debt - ltDebt) : 0;
+  if (!intSeen) {
+    /* payloads sans _intExpPure (moteur antérieur, mock) : on n'invente rien,
+       les valeurs position restent telles quelles */
+  } else if (intFY > 0 && ebitda !== undefined) {
+    set("interest_coverage", ebitda / intFY);
+    const cov = g("interest_coverage");
+    if (cov) cov.formula = `EBITDA exercice ${F(ebitda)} ÷ intérêts purs exercice ${F(intFY)} (hors résultat de change)`;
+    const svc = intFY + stDebt * 0.1;
+    set("dscr", ebitda / svc);
+    const d = g("dscr");
+    if (d) d.formula = `EBITDA exercice ${F(ebitda)} ÷ (intérêts ${F(intFY)} + 10 % dette CT ${F(stDebt)}) — approximation sans échéancier de principal`;
+    if (stDebt > 0) notes.push("DSCR approximé : sans échéancier de remboursement, le service de la dette = intérêts + 10 % de la dette court terme.");
+  } else if (intSeen && (g("interest_coverage") || g("dscr"))) {
+    /* pas d'intérêts dans l'exercice : un ratio de couverture n'a pas de sens */
+    for (const id of ["interest_coverage", "dscr"]) { const i = kpis.findIndex(k => k.id === id); if (i >= 0) kpis.splice(i, 1); }
+    notes.push("Couverture des intérêts / DSCR non affichés : aucune charge d'intérêts détectée sur l'exercice.");
+  }
+  if (ebitda && debt !== undefined) { const k = g("net_debt_ebitda"); if (k) k.formula = `dette financière ${F(debt)} ÷ EBITDA exercice ${F(ebitda)}`; }
+  const covr = g("ebitda_margin"); if (covr && rev) covr.formula = `EBITDA exercice ÷ chiffre d'affaires exercice ${F(rev)}`;
   // Les ratios en % arrivent en fraction (0.22) : normalisés ici, une seule fois.
   for (const k of kpis) if (k.unit === "%" && Math.abs(k.value) <= 5) k.value = k.value * 100;
   for (const k of kpis) k.value = Math.round(k.value * 100) / 100;
@@ -345,7 +381,7 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
   for (const d of rw) {
     if (d?.metric === "Consolidation") {
-      notes.push("Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux " +
+      if (parsed.entities.length > 1) notes.push("Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux " +
         "intercos). Pour une consolidation complète, définissez la structure de groupe dans K-Φ " +
         "(Réglages → Organisation → Structure de groupe).");
     } else if (d?.msg) {

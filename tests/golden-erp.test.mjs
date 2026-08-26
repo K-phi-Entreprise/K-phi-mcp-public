@@ -237,3 +237,12 @@ test("comptes à suffixe float (« 68000.0 », artefact pandas/Excel) : normalis
   assert.equal(r.entries[1].acct, "40000");
   assert.equal(r.coa_dict["68000"], "Freight & Logistics", "le coa_dict suit le compte normalisé");
 });
+
+test("balance mensuelle MULTI-ENTITÉS : genre trial_balance (l'entité fait partie du grain)", () => {
+  let csv = "Entity,Period,Account,AccountName,Debit,Credit\n";
+  for (const ent of ["E1", "E2", "E3", "E4", "E5"])
+    for (const per of ["2025-01", "2025-02"])
+      csv += `${ent},${per},10100,Cash,100.00,0.00\n${ent},${per},40000,Revenue,0.00,100.00\n`;
+  const r = parseLedger(csv);
+  assert.equal(r.genre, "trial_balance", "5 lignes par (compte, période) ≠ grand livre quand ce sont 5 entités");
+});

@@ -614,7 +614,10 @@ function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_b
   const pairs = new Set<string>();
   let withRef = 0;
   for (const e of entries) {
-    pairs.add(e.acct + "\u00a7" + e.period);
+    /* l'ENTITÉ fait partie du grain : une balance mensuelle de 5 entités a
+       5 lignes par (compte, période) — sans l'entité dans la clé, rpp=5 la
+       faisait passer pour un grand livre (retour terrain n°4). */
+    pairs.add(e.acct + "\u00a7" + e.period + "\u00a7" + (e.entity || ""));
     if (e.ref || e.tp) withRef++;
   }
   const rpp = entries.length / pairs.size;      /* lignes par (compte, période) */

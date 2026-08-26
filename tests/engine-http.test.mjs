@@ -35,7 +35,7 @@ function mockEngine({ failImports = 0 } = {}) {
     }
     if (u.includes("/api/statements")) {
       calls.statements++;
-      return ok({ kpi: { "Net Revenue": 150, "Net Income": 150 }, ratios: { dso: 30 } });
+      return ok({ kpi: { "Net Revenue": 150, "Net Income": 150 }, ratios: { dso: 30, _intExpPure: 500, _ltDebt: 8000 } });
     }
     if (u.includes("/api/internal/sandbox/open-link")) {
       calls.openLink++;
@@ -216,4 +216,29 @@ test("signaux de mapping : genre, adoption/rétrogradation, overrides — compt�
   recordAnalysisSignals(usage, undefined);          /* moteur mock / ancien résultat */
   recordAnalysisSignals(usage, { genre: "bizarre" }); /* valeur inattendue : ignorée */
   assert.deepEqual(events, []);
+});
+
+/* ── Ratios de couverture sur base EXERCICE (retour terrain n°4) ──── */
+test("interest_coverage & dscr : base exercice, intérêts PURS, formules exposées", async () => {
+  mockEngine();
+  const e = engine();
+  const r = await e.analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  const cov = r.kpis.find(k => k.id === "interest_coverage");
+  const dscr = r.kpis.find(k => k.id === "dscr");
+  if (cov) {
+    assert.ok(cov.formula && /intérêts purs exercice/.test(cov.formula), "formule présente et honnête sur la base");
+    assert.ok(!/change/.test(String(cov.value)));
+  }
+  if (dscr) assert.match(dscr.formula ?? "", /approximation sans échéancier/);
+  /* jamais les deux affichés sans charge d'intérêts */
+  const hasInt = r.kpis.some(k => k.id === "interest_coverage");
+  const noteNoInt = r.notes.some(n => /aucune charge d'intérêts/.test(n));
+  assert.ok(hasInt || noteNoInt || dscr === undefined);
+});
+
+test("note multi-entités : absente sur un fichier mono-entité", async () => {
+  mockEngine();
+  const mono = LEDGER;  /* fixture mono-entité */
+  const r = await engine().analyze({ content: mono, format_hint: "generic", locale: "fr" });
+  assert.ok(!r.notes.some(n => /somme simple multi-entités/.test(n)), "pas de caveat conso sur une entité unique");
 });

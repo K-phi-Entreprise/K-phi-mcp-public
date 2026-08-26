@@ -339,11 +339,19 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
      échéancier de principal = approximation documentée (+10 % de la dette
      court terme, convention moteur), signalée en note. */
   const F = (x: number) => Math.round(x).toLocaleString("fr-FR");
-  let intFY = 0, intSeen = false;
+  let intPureFY = 0, intNetFY = 0, intSeen = false;
   for (const m of monthly) {
-    const x = pick({ ...(m.ratios ?? {}) } as Record<string, unknown>, ["_intExpPure", "_intExp"]);
-    if (x !== undefined) { intFY += x; intSeen = true; }
+    const ra = (m.ratios ?? {}) as Record<string, unknown>;
+    const p = pick(ra, ["_intExpPure"]); const n = pick(ra, ["_intExp"]);
+    if (p !== undefined || n !== undefined) intSeen = true;
+    if (p !== undefined) intPureFY += p;
+    if (n !== undefined) intNetFY += n;
   }
+  /* moteur antérieur au fix « intérêts purs » : _intExpPure vaut 0 partout
+     alors que des intérêts existent — on utilise le NET en le disant, on ne
+     retire jamais le ratio à tort */
+  const intPure = intPureFY > 0;
+  const intFY = intPure ? intPureFY : intNetFY;
   const ltDebt = pick(posSrc, ["_ltDebt"]);
   const stDebt = debt !== undefined && ltDebt !== undefined ? Math.max(0, debt - ltDebt) : 0;
   if (!intSeen) {
@@ -352,7 +360,9 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   } else if (intFY > 0 && ebitda !== undefined) {
     set("interest_coverage", ebitda / intFY);
     const cov = g("interest_coverage");
-    if (cov) cov.formula = `EBITDA exercice ${F(ebitda)} ÷ intérêts purs exercice ${F(intFY)} (hors résultat de change)`;
+    if (cov) cov.formula = intPure
+      ? `EBITDA exercice ${F(ebitda)} ÷ intérêts purs exercice ${F(intFY)} (hors résultat de change)`
+      : `EBITDA exercice ${F(ebitda)} ÷ résultat financier net exercice ${F(intFY)} (intérêts non isolés par le moteur)`;
     const svc = intFY + stDebt * 0.1;
     set("dscr", ebitda / svc);
     const d = g("dscr");

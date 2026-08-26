@@ -16,6 +16,17 @@ const fmtV = (k: Kpi) => {
   const n = a >= 1e6 ? `${(k.value / 1e6).toFixed(2)} M` : a >= 1e3 ? `${(k.value / 1e3).toFixed(0)} k` : k.value.toFixed(0);
   return `${n} ${k.unit}`;
 };
+const GMAX: Record<string, [number, number]> = { ebitda_margin:[0,30], net_margin:[0,20], roe:[0,25], dso:[0,120], dio:[0,150], ccc:[0,150], net_debt_ebitda:[0,5], debt_to_equity:[0,3], dscr:[0,3], interest_coverage:[0,8], current_ratio:[0,3], quick_ratio:[0,2] };
+const gauge = (k: Kpi): string => {
+  const g = GMAX[k.id]; if (!g) return "";
+  const f = Math.max(0, Math.min(1, (k.value - g[0]) / (g[1] - g[0])));
+  return `<span style="display:inline-block;width:70px;height:6px;background:#2c2b30;border-radius:3px;vertical-align:middle"><span style="display:block;width:${Math.round(f * 100)}%;height:6px;background:${color(k)};border-radius:3px"></span></span>`;
+};
+const GROUPS: Array<[string, string[]]> = [
+  ["📈 Rentabilité", ["revenue","gross_profit","ebitda","ebitda_margin","operating_income","net_income","net_margin","roe"]],
+  ["💧 Trésorerie & cycle", ["cash","working_capital","dso","dpo","dio","ccc"]],
+  ["🏦 Structure & dette", ["total_assets","total_equity","total_debt","net_debt_ebitda","net_debt_ebitda_net","debt_to_equity","dscr","interest_coverage","current_ratio","quick_ratio"]],
+];
 const BANDS: Record<string, [number, number, boolean]> = {
   ebitda_margin: [15, 5, true], net_margin: [8, 2, true], roe: [10, 5, true],
   dso: [45, 75, false], dio: [60, 100, false], ccc: [60, 100, false],
@@ -68,6 +79,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
+.mbtn{background:#1b1a1e;color:#b7b5af;border:1px solid #2c2b30;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
 .ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
 .chartbox{height:250px;position:relative;margin-top:6px}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
@@ -76,13 +88,22 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 <span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} · ${esc(r.detected.currency)} · ${r.detected.entries.toLocaleString("fr-FR")} écritures · lien 24 h</span>
 <a class="ctah" href="/a/${esc(analysisId)}/open">Ouvrir dans K-Φ →</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>Réserves de lecture</b> — ${caveats.map(esc).join(" ")} Le forecast et les ratios en héritent.</div>` : ""}
-<div class="tiles">${tiles.map(k => `<div class="tile"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div>${k.formula ? `<div class="mut" style="font-size:11px">${esc(k.formula).slice(0, 60)}</div>` : ""}</div>`).join("")}</div>
-${series.length > 1 ? `<h2>Chiffre d'affaires &amp; EBITDA par mois</h2><div class="chartbox"><canvas id="c"></canvas></div>` : ""}
+<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? "Voir le détail dans K-Φ")} · réf. ${refCell(k).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
+${series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center">Chiffre d'affaires &amp; EBITDA
+<span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button></span></h2>
+<div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 ${covs.length ? `<h2>Covenants</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(k.label)} ${fmtV(k)} <span class="mut">seuil ${k.threshold}</span></span>`).join("")}</div>` : ""}
 ${r.alerts.length ? `<h2>Points d'attention</h2>${r.alerts.map(a => `<div class="cav">⚠ ${esc(a)}</div>`).join("")}` : ""}
-<h2>KPI</h2><table><tr><th>Indicateur</th><th class="r">Valeur</th><th class="r">Référence</th></tr>
-${r.kpis.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("")}
+<h2>KPI</h2><table><tr><th>Indicateur</th><th class="r">Valeur</th><th class="r">Jauge</th><th class="r">Référence</th></tr>
+${GROUPS.map(([title, ids]) => {
+  const rows = ids.map(id => byId.get(id)).filter((k): k is Kpi => !!k);
+  if (!rows.length) return "";
+  return `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">${title}</td></tr>` +
+    rows.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("");
+}).join("")}
+${(() => { const gd = new Set(GROUPS.flatMap(g => g[1])); const rest = r.kpis.filter(k => !gd.has(k.id));
+  return rest.length ? `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">Autres</td></tr>` + rest.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("") : ""; })()}
 </table>
 <div class="mut" style="font-size:12px;margin-top:6px">Références génériques mid-market, tous secteurs — un secteur ne se déduit pas fiablement d'un grand livre seul. Précisez le vôtre dans K-Φ pour des bandes sectorielles, ou passez vos seuils réels en covenants : ils remplacent la référence.</div>
 <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px">
@@ -90,9 +111,18 @@ ${r.kpis.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${colo
 <span class="mut">Bilan · P&amp;L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.</span>
 </div>
 ${series.length > 1 ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>new Chart(document.getElementById('c'),{data:{labels:${JSON.stringify(series.map(s => s.period))},datasets:[
-{type:'bar',label:'CA',data:${JSON.stringify(series.map(s => s.revenue ?? null))},backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},
-{type:'line',label:'EBITDA',data:${JSON.stringify(series.map(s => s.ebitda ?? null))},borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}
-]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}}});</script>` : ""}
+<script>
+const S=${JSON.stringify(series)};let CM='M',CH;
+const FYr=S.reduce((a,s)=>a+(s.revenue||0),0),FYe=S.reduce((a,s)=>a+(s.ebitda||0),0);
+const OPT={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
+function cmode(m){CM=m;draw();}
+function draw(){if(CH)CH.destroy();
+ document.getElementById('bM').style.borderColor=CM==='M'?'#898781':'#2c2b30';
+ document.getElementById('bW').style.borderColor=CM==='W'?'#898781':'#2c2b30';
+ CH=CM==='M'?new Chart(document.getElementById('c'),{data:{labels:S.map(s=>s.period),datasets:[
+  {type:'bar',label:'CA',data:S.map(s=>s.revenue??null),backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},
+  {type:'line',label:'EBITDA',data:S.map(s=>s.ebitda??null),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}]},options:OPT})
+ :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
+draw();</script>` : ""}
 </div></body></html>`;
 }

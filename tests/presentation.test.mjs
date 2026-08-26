@@ -85,7 +85,9 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
   assert.match(html, /Plusieurs devises détectées/);
   assert.match(html, /DSCR.*seuil 1.2.*covenant/s, "covenant fourni → son seuil, étiqueté");
   assert.match(html, /Marge d'EBITDA.*≥ 15 %/s, "sans covenant → bande mid-market typée");
-  assert.match(html, /Chiffre d'affaires<\/td><td[^>]*>[^<]*<\/td><td class="r mut">—/, "jamais de seuil sur un montant");
+  assert.match(html, /Chiffre d'affaires[\s\S]{0,220}?class="r mut">—/, "jamais de seuil sur un montant (cellule jauge intercalée tolérée)");
+  assert.match(html, /📈 Rentabilité[\s\S]*💧 Trésorerie[\s\S]*🏦 Structure/, "table groupée en sections");
+  assert.match(html, /Waterfall/, "mode waterfall présent");
   assert.match(html, /ne se déduit pas fiablement/);
   assert.equal(html.split("/a/an_x1/open").length - 1, 2, "CTA en haut (droite de l'en-tête) ET en bas");
   assert.match(html, /Chart\.js|chart\.umd/);

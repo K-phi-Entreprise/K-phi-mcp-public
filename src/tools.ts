@@ -267,8 +267,9 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "3) structuredContent avec analysis_url (dashboard K-Φ : tuiles, graphique, covenants — lien personnel 24 h), " +
         "kpis[] (id/valeur/formule/seuil/statut), alerts, notes, detected.column_map. " +
         "L'analysis_url est l'artefact principal pour l'utilisateur : présentez-le avec votre restitution. " +
-        "En cas d'erreur, le message distingue toujours : fichier illisible / paramètre manquant (NeedsInput, " +
-        "corrigeable via column_map) / indisponibilité moteur (jamais la faute du fichier).",
+        "Erreurs typées : parse_error (format illisible), needs_input (paramètre manquant, corrigeable via " +
+        "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : somme simple, sans " +
+        "élimination interco ni conversion FX — signalé dans notes[].",
       inputSchema: {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),

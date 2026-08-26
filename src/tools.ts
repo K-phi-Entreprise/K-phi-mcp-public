@@ -118,6 +118,11 @@ function kpiTable(kpis: Kpi[]): string {
 export function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {
   const payload = {
     ...r,
+    /* Contrat de sortie VERSIONNÉ : les clients (assistants, intégrations)
+       peuvent s'ancrer sur cette forme. 1.0 = detected + kpis (formule/
+       seuil/statut) + alerts + notes + analysis_url. La section forecast
+       arrivera en 1.1 — champ ADDITIF, jamais de rupture sans bump majeur. */
+    report_version: "1.0",
     analysis_id: analysisId,
     /* champ stable et explicite pour les clients : l'URL du rapport */
     analysis_url: `${deps.ingestBaseUrl}/a/${analysisId}`,

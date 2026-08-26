@@ -89,9 +89,8 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
   assert.match(html, /📈 Rentabilité[\s\S]*💧 Trésorerie[\s\S]*🏦 Structure/, "sections groupées (tuiles)");
   assert.match(html, /Waterfall/, "mode waterfall présent");
   assert.match(html, /ne se déduit pas fiablement/);
-  assert.equal(html.split("/a/an_x1/open").length - 1, 2, "CTA tête + pied ; le bouton forecast ne REDIRIGE plus (rendu inline à venir, jamais un cul-de-sac app)");
-  assert.match(html, /Créer le forecast/);
-  assert.match(html, /rendu ICI/);
+  assert.equal(html.split("/a/an_x1/open").length - 1, 2, "CTA tête + pied ; Projeter est un panneau, jamais une redirection");
+  assert.match(html, /Projeter/, "critère 1 : bouton toujours présent");
   assert.match(html, /Chart\.js|chart\.umd/);
 });
 
@@ -115,4 +114,28 @@ test("le lien est un OBJET du protocole : resource_link en PREMIER bloc (rendu p
   assert.equal(rl.uri, "https://mcp.test/a/an_test123");
   assert.match(rl.name, /Dashboard K-Φ/);
   assert.equal(rl.mimeType, "text/html");
+});
+
+/* ── Panneau forecast (SPEC ★ critères 1/2/3/4/6) ────────────────── */
+test("forecast : bouton toujours, __FC injecté échappé, méthodes avec provenance, drill réel+projeté", () => {
+  const fc = { horizon_months: 6,
+    global: { series: [{ period: "2026-01", sales: 100, impliedDSO: 37 }], blocked: null },
+    by_entity: { "E</script>1": { series: [{ period: "2026-01", sales: 60 }], blocked: null },
+                 E2: { series: [], blocked: { reason: "no history" } } },
+    by_bu: {},
+    methods: { dso_by_entity: { E2: { value: 141, source: "gl_observed", basis: 8200 } },
+               dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_fc", { ...R, forecast: fc, report_version: "1.1",
+    series: [{ period: "2025-01", revenue: 3.4e6, ebitda: 6e4 }, { period: "2025-02", revenue: 3.2e6, ebitda: 7e4 }] });
+  assert.match(html, /id="bF"[^>]*>Projeter/, "bouton présent avec forecast");
+  assert.ok(!html.includes("E</script>1"), "nom d'entité hostile échappé dans __FC (\\u003c)");
+  assert.match(html, /observé GL/, "provenance des méthodes rendue");
+  assert.match(html, /CA réel \(exercice\)/, "drill : barres réel + projeté");
+  assert.match(html, /Projection bloquée par le moteur/, "chemin fcBlocked rendu tel quel");
+});
+
+test("forecast absent (analyse 1.0) : le bouton EXISTE quand même et explique (critère 6)", () => {
+  const html = renderReport("an_old", { ...R });
+  assert.match(html, /id="bF"[^>]*>Projeter/);
+  assert.match(html, /antérieure au contrat 1\.1/);
 });

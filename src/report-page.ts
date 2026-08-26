@@ -61,11 +61,13 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
+.ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
 .chartbox{height:250px;position:relative;margin-top:6px}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — Analyse ${esc(r.detected.period)}</h1>
-<span class="mut">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} · ${esc(r.detected.currency)} · ${r.detected.entries.toLocaleString("fr-FR")} écritures · lien 24 h</span></div>
+<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} · ${esc(r.detected.currency)} · ${r.detected.entries.toLocaleString("fr-FR")} écritures · lien 24 h</span>
+<a class="ctah" href="/a/${esc(analysisId)}/open">Ouvrir dans K-Φ →</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>Réserves de lecture</b> — ${caveats.map(esc).join(" ")} Le forecast et les ratios en héritent.</div>` : ""}
 <div class="tiles">${tiles.map(k => `<div class="tile"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div>${k.formula ? `<div class="mut" style="font-size:11px">${esc(k.formula).slice(0, 60)}</div>` : ""}</div>`).join("")}</div>
 ${series.length > 1 ? `<h2>Chiffre d'affaires &amp; EBITDA par mois</h2><div class="chartbox"><canvas id="c"></canvas></div>` : ""}

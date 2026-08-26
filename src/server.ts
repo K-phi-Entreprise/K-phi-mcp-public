@@ -94,7 +94,13 @@ const app = express();
 app.set("trust proxy", true); // Render / reverse proxy → X-Forwarded-For
 app.use(contextMiddleware);
 
-app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
+/* Version déployée exposée : chaque aller-retour terrain de cette semaine a
+   commencé par « le fix est-il déployé ? » sans moyen de répondre. Render
+   fournit RENDER_GIT_COMMIT ; curl /healthz clôt la question. */
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true, commit: (process.env.RENDER_GIT_COMMIT ?? "dev").slice(0, 9),
+             deployed_at: process.env.RENDER_DEPLOY_TIME ?? null });
+});
 
 // ---- Endpoint MCP ----
 app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {

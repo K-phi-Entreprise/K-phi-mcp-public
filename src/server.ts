@@ -22,16 +22,21 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-// Icône du serveur (SEP-973, MCP ≥ 2025-11-25) : K-Φ 192×192 en data URI. Inerte
-// tant que claude.ai ne lit pas serverInfo.icons pour les connecteurs custom,
-// mais conforme à la spec et prêt pour l'annuaire.
-const ICON_DATA_URI = (() => {
+// Icône du serveur (SEP-973, MCP ≥ 2025-11-25) : K-Φ 192×192, chargée une
+// fois au boot. Servie de deux façons :
+//  1. data URI dans serverInfo.icons (initialize) — conforme à la spec,
+//     lu par l'annuaire de connecteurs.
+//  2. /favicon.ico — sans cette route, un client qui résout l'icône par
+//     convention de domaine (plutôt que via le protocole MCP) tombe sur le
+//     favicon par défaut de l'hébergeur (Render) au lieu du nôtre. Constaté
+//     en pratique dans le chip d'appel d'outil de claude.ai.
+const ICON_PNG = (() => {
   try {
     const here = dirname(fileURLToPath(import.meta.url));
-    const png = readFileSync(join(here, "..", "assets", "icon-192.png"));
-    return `data:image/png;base64,${png.toString("base64")}`;
+    return readFileSync(join(here, "..", "assets", "icon-192.png"));
   } catch { return undefined; }
 })();
+const ICON_DATA_URI = ICON_PNG ? `data:image/png;base64,${ICON_PNG.toString("base64")}` : undefined;
 
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://k-phi.com";
@@ -100,6 +105,15 @@ app.use(contextMiddleware);
 app.get("/healthz", (_req, res) => {
   res.json({ ok: true, commit: (process.env.RENDER_GIT_COMMIT ?? "dev").slice(0, 9),
              deployed_at: process.env.RENDER_DEPLOY_TIME ?? null });
+});
+
+// Voir le commentaire sur ICON_PNG plus haut : couvre les résolutions
+// d'icône par convention de domaine, en plus de serverInfo.icons.
+app.get("/favicon.ico", (_req, res) => {
+  if (!ICON_PNG) { res.status(404).end(); return; }
+  res.set("Content-Type", "image/png");
+  res.set("Cache-Control", "public, max-age=86400");
+  res.send(ICON_PNG);
 });
 
 // ---- Endpoint MCP ----

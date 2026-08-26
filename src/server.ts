@@ -17,6 +17,7 @@ import { KphiHttpEngine } from "./engine-http.js";
 import { MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
 import { createUploadStorage } from "./upload-storage.js";
+import { renderReport } from "./report-page.js";
 import { UsageCounter } from "./usage.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -217,7 +218,25 @@ app.put("/upload/:token",
 // TODO côté app K-Phi : la cible réelle doit créer un compte par magic link
 // et rattacher analysisId — à date cette route n'existe peut-être pas encore
 // sur k-phi.com, d'où le repli sur PUBLIC_BASE_URL tel quel en attendant.
+/* /a/:id devient le DASHBOARD (maquette wrap-up validée le 2026-08-26) :
+   tuiles, graphique CA/EBITDA, covenants, table KPI, réserves conso/FX —
+   rendu serveur depuis le résultat persisté, sans dépendre du modèle relais.
+   L'ouverture de l'app complète passe par /a/:id/open (comptage conservé). */
 app.get("/a/:id", async (req, res) => {
+  usage.record("report_view");
+  const rec = await store.get(req.params.id);
+  if (rec?.status === "ready" && rec.result) {
+    res.type("html").send(renderReport(req.params.id, rec.result));
+    return;
+  }
+  res.status(rec ? 202 : 404).type("html").send(
+    `<html lang="fr"><body style="background:#111013;color:#e8e6e1;font-family:sans-serif;padding:40px">` +
+    (rec ? "Analyse en cours — rechargez dans quelques secondes."
+         : "Lien expiré ou analyse introuvable (validité 24 h). Relancez une analyse depuis votre assistant.") +
+    `</body></html>`);
+});
+
+app.get("/a/:id/open", async (req, res) => {
   usage.record("conversion_click");
   const q = new URLSearchParams(req.query as Record<string, string>);
   const rec = await store.get(req.params.id);

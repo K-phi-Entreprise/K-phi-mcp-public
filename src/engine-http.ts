@@ -331,7 +331,8 @@ export function resolveCovenantMetric(name: string): { id: string; net?: boolean
 const FLOW_IDS = new Set(["revenue", "gross_profit", "ebitda", "operating_income", "net_income"]);
 
 function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: StatementsPayload,
-                          monthly: StatementsPayload[], input: AnalyzeInput): AnalysisResult {
+                          monthly: StatementsPayload[], input: AnalyzeInput,
+                          periods: string[] = []): AnalysisResult {
   const posK = (position.kpi ?? {}) as Record<string, unknown>;
   const posR = (position.ratios ?? {}) as Record<string, unknown>;
   const posSrc = { ...posR, ...posK };
@@ -377,6 +378,13 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
      échéancier de principal = approximation documentée (+10 % de la dette
      court terme, convention moteur), signalée en note. */
   const F = (x: number) => Math.round(x).toLocaleString("fr-FR");
+  /* Série mensuelle persistée (dashboard /a/:id) : additive au contrat 1.0. */
+  const series: Array<{ period: string; revenue?: number; ebitda?: number }> = [];
+  monthly.forEach((m, i) => {
+    const kk = (m.kpi ?? {}) as Record<string, unknown>;
+    series.push({ period: periods[i] ?? `M${i + 1}`,
+      revenue: pick(kk, ["Net Revenue"]), ebitda: pick(kk, ["EBITDA"]) });
+  });
   let intPureFY = 0, intNetFY = 0, intSeen = false;
   for (const m of monthly) {
     const ra = (m.ratios ?? {}) as Record<string, unknown>;
@@ -493,6 +501,7 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   for (const w of position.warnings ?? []) alerts.push(w);
 
   return {
+    series,
     detected: { format: parsed.format, chart_of_accounts: "auto", currency: parsed.currency,
                 period: `${parsed.period_from}..${parsed.period_to}`, entries: parsed.entries.length,
                 genre: parsed.genre, column_map: parsed.column_map,

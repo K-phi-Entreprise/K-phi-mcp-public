@@ -104,7 +104,7 @@ ${caveats.length ? `<div class="cav">⚠ <b>Réserves de lecture</b> — ${cavea
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? "Voir le détail dans K-Φ")} · réf. ${refCell(k).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 ${series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center">Chiffre d'affaires &amp; EBITDA
 <span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button>
-<a class="mbtn" style="text-decoration:none;border-color:#898781" href="/a/${esc(analysisId)}/open?view=forecast">Créer le forecast →</a></span></h2>
+<button class="mbtn" style="border-color:#898781;opacity:.75;cursor:default" title="Le forecast sera calculé par le moteur K-Φ et rendu ICI (DSO/DPO observés par entité) — exposition ?fc=1 en cours">Créer le forecast · bientôt ici</button></span></h2>
 <div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 ${covs.length ? `<h2>Covenants</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(k.label)} ${fmtV(k)} <span class="mut">seuil ${k.threshold}</span></span>`).join("")}</div>` : ""}

@@ -89,8 +89,9 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
   assert.match(html, /📈 Rentabilité[\s\S]*💧 Trésorerie[\s\S]*🏦 Structure/, "sections groupées (tuiles)");
   assert.match(html, /Waterfall/, "mode waterfall présent");
   assert.match(html, /ne se déduit pas fiablement/);
-  assert.equal(html.split("/a/an_x1/open").length - 1, 3, "CTA tête + bouton forecast (moteur) + CTA pied");
+  assert.equal(html.split("/a/an_x1/open").length - 1, 2, "CTA tête + pied ; le bouton forecast ne REDIRIGE plus (rendu inline à venir, jamais un cul-de-sac app)");
   assert.match(html, /Créer le forecast/);
+  assert.match(html, /rendu ICI/);
   assert.match(html, /Chart\.js|chart\.umd/);
 });
 

@@ -57,6 +57,15 @@ export interface AnalysisResult {
     overrides_applied?: number;
   };
   kpis: Kpi[];
+  /** Forecast v1.1 (SPEC ★) : lignes FC_PROJ du moteur relayées par périmètre + méthodes DSO/DPO observées GL. */
+  forecast?: {
+    horizon_months: number;
+    global: { series: Array<Record<string, unknown>>; blocked: unknown };
+    by_entity: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown }>;
+    by_bu: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown }>;
+    methods: Record<string, Record<string, { value: number; source: string }>>;
+  };
+  report_version?: string;
   /** Série mensuelle (revenue/EBITDA) pour le dashboard — additive, absente sur les moteurs mock/antérieurs. */
   series?: Array<{ period: string; revenue?: number; ebitda?: number }>;
   alerts: string[];

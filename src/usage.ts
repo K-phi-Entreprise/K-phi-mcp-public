@@ -30,6 +30,7 @@ export type EventName =
   | "genre:ledger"
   | "genre:trial_balance"
   | "genre:unknown"
+  | "report_view"        // ouverture du dashboard /a/:id (avant le clic app)
   | "conversion_click";   // clic sur open_in_kphi_url (voir server.ts, redirect /a/:id)
 
 interface DayBucket { [event: string]: number }

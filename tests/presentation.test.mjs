@@ -70,3 +70,32 @@ test("fichier analysé en tableau ; alertes en blockquote ⚠️ ; notes replié
 test("contrat versionné : report_version 1.0 ancré (additif ensuite, rupture = bump majeur)", () => {
   assert.equal(out.structuredContent.report_version, "1.0");
 });
+
+/* ── Dashboard /a/:id (implémentation de la maquette validée) ────── */
+import { renderReport } from "../dist/report-page.js";
+
+test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles", () => {
+  const html = renderReport("an_x1", { ...R,
+    series: [{ period: "2025-01", revenue: 3.4e6, ebitda: 6e4 }, { period: "2025-02", revenue: 3.2e6, ebitda: 7e4 }],
+    notes: ["Ces chiffres sont une somme simple multi-entités (…)"],
+    detected: { ...R.detected, currency: "USD, EUR" } });
+  assert.match(html, /Marge d'EBITDA/);
+  assert.match(html, /Réserves de lecture/);
+  assert.match(html, /somme simple des entités/);
+  assert.match(html, /Plusieurs devises détectées/);
+  assert.match(html, /DSCR.*seuil 1.2/s);
+  assert.match(html, /\/a\/an_x1\/open/);
+  assert.match(html, /Chart\.js|chart\.umd/);
+});
+
+test("dashboard mono-entité mono-devise : AUCUN bandeau de réserves à tort", () => {
+  const html = renderReport("an_x2", { ...R, series: [] });
+  assert.doesNotMatch(html, /Réserves de lecture/);
+  assert.doesNotMatch(html, /chart\.umd/, "pas de graphique sans série");
+});
+
+test("dashboard : échappement HTML des données (un nom de fichier ne devient pas du script)", () => {
+  const html = renderReport("an_x3", { ...R, alerts: ['<script>alert(1)</script>'] });
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /&lt;script&gt;/);
+});

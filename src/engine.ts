@@ -57,6 +57,8 @@ export interface AnalysisResult {
     overrides_applied?: number;
   };
   kpis: Kpi[];
+  /** Série mensuelle (revenue/EBITDA) pour le dashboard — additive, absente sur les moteurs mock/antérieurs. */
+  series?: Array<{ period: string; revenue?: number; ebitda?: number }>;
   alerts: string[];
   /** États par défaut attendus, configurables dans K-Φ pour plus de précision
    *  (ex. consolidation non paramétrée, devise unique supposée) — pas des

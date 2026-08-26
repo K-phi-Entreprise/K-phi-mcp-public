@@ -23,6 +23,13 @@ const BANDS: Record<string, [number, number, boolean]> = {
   dscr: [1.5, 1.2, true], interest_coverage: [4, 2, true],
   current_ratio: [1.5, 1.0, true], quick_ratio: [1.0, 0.7, true],
 };
+const refCell = (k: Kpi): string => {
+  if (k.threshold !== undefined) return `seuil ${k.threshold} <span style="color:#898781">(covenant)</span>`;
+  const b = BANDS[k.id]; if (!b) return "—";                 /* montants : pas de seuil */
+  const [g, , up] = b;
+  const u = k.unit === "%" ? " %" : k.unit === "days" ? " j" : k.unit === "x" ? "x" : "";
+  return `${up ? "≥" : "≤"} ${g}${u}`;
+};
 const color = (k: Kpi) => {
   if (k.status === "breach") return "#d03b3b";
   const b = BANDS[k.id]; if (!b) return "#e8e6e1";
@@ -74,11 +81,14 @@ ${series.length > 1 ? `<h2>Chiffre d'affaires &amp; EBITDA par mois</h2><div cla
 ${covs.length ? `<h2>Covenants</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(k.label)} ${fmtV(k)} <span class="mut">seuil ${k.threshold}</span></span>`).join("")}</div>` : ""}
 ${r.alerts.length ? `<h2>Points d'attention</h2>${r.alerts.map(a => `<div class="cav">⚠ ${esc(a)}</div>`).join("")}` : ""}
-<h2>KPI</h2><table><tr><th>Indicateur</th><th class="r">Valeur</th><th class="r">Seuil</th></tr>
-${r.kpis.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r mut">${k.threshold ?? "—"}</td></tr>`).join("")}
+<h2>KPI</h2><table><tr><th>Indicateur</th><th class="r">Valeur</th><th class="r">Référence</th></tr>
+${r.kpis.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("")}
 </table>
-<a class="cta" href="/a/${esc(analysisId)}/open">Ouvrir l'analyse détaillée dans K-Φ →</a>
-<div class="mut" style="margin-top:8px">Bilan · P&amp;L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.</div>
+<div class="mut" style="font-size:12px;margin-top:6px">Références génériques mid-market, tous secteurs — un secteur ne se déduit pas fiablement d'un grand livre seul. Précisez le vôtre dans K-Φ pour des bandes sectorielles, ou passez vos seuils réels en covenants : ils remplacent la référence.</div>
+<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px">
+<a class="cta" style="margin-top:0" href="/a/${esc(analysisId)}/open">Ouvrir l'analyse détaillée dans K-Φ →</a>
+<span class="mut">Bilan · P&amp;L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.</span>
+</div>
 ${series.length > 1 ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>new Chart(document.getElementById('c'),{data:{labels:${JSON.stringify(series.map(s => s.period))},datasets:[
 {type:'bar',label:'CA',data:${JSON.stringify(series.map(s => s.revenue ?? null))},backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},

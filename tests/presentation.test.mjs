@@ -83,7 +83,10 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
   assert.match(html, /Réserves de lecture/);
   assert.match(html, /somme simple des entités/);
   assert.match(html, /Plusieurs devises détectées/);
-  assert.match(html, /DSCR.*seuil 1.2/s);
+  assert.match(html, /DSCR.*seuil 1.2.*covenant/s, "covenant fourni → son seuil, étiqueté");
+  assert.match(html, /Marge d'EBITDA.*≥ 15 %/s, "sans covenant → bande mid-market typée");
+  assert.match(html, /Chiffre d'affaires<\/td><td[^>]*>[^<]*<\/td><td class="r mut">—/, "jamais de seuil sur un montant");
+  assert.match(html, /ne se déduit pas fiablement/);
   assert.equal(html.split("/a/an_x1/open").length - 1, 2, "CTA en haut (droite de l'en-tête) ET en bas");
   assert.match(html, /Chart\.js|chart\.umd/);
 });

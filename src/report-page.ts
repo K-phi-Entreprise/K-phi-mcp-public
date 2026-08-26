@@ -103,8 +103,7 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 ${caveats.length ? `<div class="cav">⚠ <b>Réserves de lecture</b> — ${caveats.map(esc).join(" ")} Le forecast et les ratios en héritent.</div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? "Voir le détail dans K-Φ")} · réf. ${refCell(k).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 ${series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center">Chiffre d'affaires &amp; EBITDA
-<span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button>
-<button class="mbtn" style="border-color:#898781;opacity:.75;cursor:default" title="Le forecast sera calculé par le moteur K-Φ et rendu ICI (DSO/DPO observés par entité) — exposition ?fc=1 en cours">Créer le forecast · bientôt ici</button></span></h2>
+<span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button></span></h2>
 <div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 ${covs.length ? `<h2>Covenants</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(k.label)} ${fmtV(k)} <span class="mut">seuil ${k.threshold}</span></span>`).join("")}</div>` : ""}
@@ -141,5 +140,91 @@ function draw(){if(CH)CH.destroy();
   {type:'line',label:'EBITDA',data:S.map(s=>s.ebitda??null),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}]},options:OPT})
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
+<div style="display:flex;justify-content:flex-end;margin-top:14px">
+<button class="mbtn" id="bF" style="border-color:#898781;font-size:13px;padding:8px 14px" onclick="fcpanel()">Projeter →</button>
+</div>
+<div id="fcp" style="display:none;margin-top:8px">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <span class="mut">Périmètre</span>
+    <select id="fcs" onchange="fcdraw()" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:6px 10px"></select>
+    <span class="mut" style="margin-left:auto">projection moteur K-Φ · horizon ${(r.forecast?.horizon_months ?? 6)} mois</span>
+  </div>
+  <div id="fcblocked" class="cav" style="display:none"></div>
+  <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
+  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">Décomposition par entité — réel (exercice) et projeté (horizon)</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div></div>
+</div>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};</script>
+<script>
+let FCON=false,CHD=null;
+function fcpanel(){
+  FCON=!FCON;const p=document.getElementById('fcp');
+  document.getElementById('bF').textContent=FCON?'Masquer la projection':'Projeter →';
+  if(!window.__FC){/* analyse antérieure à la v1.1 : le bouton EXISTE et explique (critère 6) */
+    p.style.display=FCON?'block':'none';
+    document.getElementById('fcblocked').style.display='block';
+    document.getElementById('fcblocked').textContent='⚠ Projection non disponible sur cette analyse (antérieure au contrat 1.1) — relancez l\'analyse pour l\'obtenir.';
+    return;}
+  if(FCON&&!document.getElementById('fcs').options.length){
+    const sel=document.getElementById('fcs');
+    sel.add(new Option('Global','g:'));
+    for(const e of Object.keys(window.__FC.by_entity||{}))sel.add(new Option('Entité '+e,'e:'+e));
+    for(const b of Object.keys(window.__FC.by_bu||{}))sel.add(new Option('BU '+b,'b:'+b));
+    /* défaut = Entité si une seule, sinon Global (critère 2 : entité par défaut quand elle a un sens) */
+    const ents=Object.keys(window.__FC.by_entity||{});
+    if(ents.length===1)sel.value='e:'+ents[0];
+  }
+  p.style.display=FCON?'block':'none';
+  document.getElementById('fcdrill').style.display=(FCON&&Object.keys(window.__FC.by_entity||{}).length>1)?'block':'none';
+  if(FCON){fcdraw();}else if(typeof draw==='function'){draw();}
+}
+function fcscope(){const v=document.getElementById('fcs').value||'g:';const[k,id]=v.split(':');
+  return k==='e'?window.__FC.by_entity[id]:k==='b'?window.__FC.by_bu[id]:window.__FC.global;}
+function fcdraw(){
+  const sc=fcscope(),v=document.getElementById('fcs').value||'g:',[kind,id]=v.split(':');
+  const blk=document.getElementById('fcblocked');
+  if(sc.blocked){blk.style.display='block';blk.textContent='⚠ Projection bloquée par le moteur pour ce périmètre : '+(sc.blocked.reason||JSON.stringify(sc.blocked));}
+  else blk.style.display='none';
+  /* cartes de méthodes : DSO/DPO OBSERVÉS GL du périmètre, provenance affichée (critère 3) */
+  const m=window.__FC.methods||{},box=document.getElementById('fcmeth');
+  const card=(t,b)=>'<div style="border:1px solid #2c2b30;border-radius:10px;padding:8px 12px;font-size:13px"><span class="mut" style="font-size:12px">'+t+'</span><br>'+b+'</div>';
+  const src=s=>s==='gl_observed'?'observé GL':'repli';
+  let cards='';
+  const dm=kind==='e'?m.dso_by_entity:kind==='b'?m.dso_by_bu:null;
+  const pm=kind==='e'?m.dpo_by_entity:kind==='b'?m.dpo_by_bu:null;
+  if(dm&&dm[id])cards+=card('Créances','DSO '+dm[id].value+' j ('+src(dm[id].source)+', '+id+')');
+  if(pm&&pm[id])cards+=card('Fournisseurs','DPO '+pm[id].value+' j ('+src(pm[id].source)+', '+id+')');
+  if(kind==='g'){const es=Object.entries(m.dso_by_entity||{});
+    if(es.length)cards+=card('Créances','DSO par entité : '+es.map(([e,x])=>e+' '+x.value+' j').join(' · '));
+    const ps=Object.entries(m.dpo_by_entity||{});
+    if(ps.length)cards+=card('Fournisseurs','DPO par entité : '+ps.map(([e,x])=>e+' '+x.value+' j').join(' · '));}
+  const rows=sc.series||[];
+  if(rows.length&&rows[0].impliedDSO!==undefined)cards+=card('Mécanique BFR','impliedDSO '+Math.round(rows[0].impliedDSO)+' j · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' j':'—')+' (dérivés du GL du périmètre)');
+  box.innerHTML=cards||card('Méthodes','Projection moteur (tendance + BFR) — détail dans K-Φ');
+  /* projection sur le graphique principal : ventes projetées en gris (données moteur, jamais recalculées) */
+  if(typeof S!=='undefined'&&typeof draw==='function'){
+    if(CHD){CHD.destroy();CHD=null;}
+    const labels=S.map(s=>s.period).concat(rows.map(x=>x.period));
+    const rev=S.map(s=>s.revenue??null).concat(rows.map(()=>null));
+    const proj=S.map(()=>null).concat(rows.map(x=>x.sales??null));
+    if(CH)CH.destroy();
+    CH=new Chart(document.getElementById('c'),{data:{labels,datasets:[
+      {type:'bar',label:'CA réel',data:rev,backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:24},
+      {type:'bar',label:'CA projeté ('+(kind==='g'?'global':id)+')',data:proj,backgroundColor:'rgba(137,135,129,0.45)',borderRadius:4,maxBarThickness:24},
+      {type:'line',label:'EBITDA réel',data:S.map(s=>s.ebitda??null).concat(rows.map(()=>null)),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}
+    ]},options:OPT});}
+  /* drill : réel FY + projeté par entité, côte à côte (critère 4) */
+  const dr=document.getElementById('fcdrill');
+  if(dr.style.display!=='none'){
+    const ents=Object.keys(window.__FC.by_entity||{});
+    const projByEnt=ents.map(e=>(window.__FC.by_entity[e].series||[]).reduce((a,x)=>a+(x.sales||0),0));
+    const dsoE=(window.__FC.methods||{}).dso_by_entity||{};
+    const realByEnt=ents.map(e=>dsoE[e]&&dsoE[e].basis!==undefined?dsoE[e].basis:null);
+    if(CHD)CHD.destroy();
+    CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:ents,datasets:[
+      {label:'CA réel (exercice)',data:realByEnt,backgroundColor:'#2a78d6',borderRadius:3},
+      {label:'CA projeté (horizon)',data:projByEnt,backgroundColor:'rgba(137,135,129,0.5)',borderRadius:3},
+    ]},options:{...OPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}}}});}
+}
+</script>
 </div></body></html>`;
 }

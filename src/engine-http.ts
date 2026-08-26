@@ -371,11 +371,16 @@ export function buildForecast(position: { fc?: Array<Record<string, unknown>>; f
                               bus: string[], buFc: Array<{ fc: Array<Record<string, unknown>>; blocked: unknown }>) {
   const ra = (position.ratios ?? {}) as Record<string, WcMap>;
   const meth = (m: WcMap | undefined, key: "dso" | "dpo") => {
-    const out: Record<string, { value: number; source: string }> = {};
+    const out: Record<string, { value: number; source: string; basis?: number }> = {};
     for (const [k, v] of Object.entries(m ?? {})) {
       const val = (v as Record<string, unknown>)[key];
-      if (typeof val === "number" && isFinite(val))
-        out[k] = { value: Math.round(val), source: v._denomSource === "gl" ? "gl_observed" : "fallback" };
+      if (typeof val === "number" && isFinite(val)) {
+        /* basis = CA (dso) ou achats (dpo) du périmètre, calculés par le
+           moteur — relayés pour le drill réel-vs-projeté du dashboard. */
+        const basis = (v as Record<string, unknown>)[key === "dso" ? "rev" : "cogs"];
+        out[k] = { value: Math.round(val), source: v._denomSource === "gl" ? "gl_observed" : "fallback",
+                   ...(typeof basis === "number" && isFinite(basis) ? { basis } : {}) };
+      }
     }
     return out;
   };

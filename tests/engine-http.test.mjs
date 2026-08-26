@@ -304,6 +304,7 @@ test("forecast : appels fc par scope (global + entité + BU), lignes moteur rela
   assert.equal(r.forecast.by_entity.E1.series[0].impliedDSO, 41, "projection DE L'ENTITÉ, pas du groupe");
   assert.equal(g._flowDetails, undefined, "champs privés lourds élagués");
   /* méthodes : DSO/DPO observés GL avec provenance (critère 3) */
-  assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 37, source: "gl_observed" });
+  assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 37, source: "gl_observed", basis: 100 },
+    "basis = CA du périmètre calculé moteur, relayé pour le drill");
   assert.equal(r.forecast.methods.dso_by_bu.B1.source, "fallback");
 });

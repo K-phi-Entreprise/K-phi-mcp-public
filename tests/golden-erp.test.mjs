@@ -227,3 +227,13 @@ test("un override lève même une colonne-piège (l'appelant assume)", () => {
   assert.equal(r.entries.length, 2);
   assert.equal(r.entries[0].dr, 10);
 });
+
+test("comptes à suffixe float (« 68000.0 », artefact pandas/Excel) : normalisés — le piège du scheme-flip", () => {
+  const r = parseLedger(`Period,Account,AccountName,Debit,Credit
+2025-01,68000.0,Freight & Logistics,500.00,0.00
+2025-01,40000.0,Revenue,0.00,500.00
+`);
+  assert.equal(r.entries[0].acct, "68000", "jamais « 68000.0 »");
+  assert.equal(r.entries[1].acct, "40000");
+  assert.equal(r.coa_dict["68000"], "Freight & Logistics", "le coa_dict suit le compte normalisé");
+});

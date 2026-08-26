@@ -66,3 +66,7 @@ test("fichier analysé en tableau ; alertes en blockquote ⚠️ ; notes replié
   assert.match(text, /> ⚠️ DSCR non calculé/);
   assert.match(text, /<details><summary>À affiner/);
 });
+
+test("contrat versionné : report_version 1.0 ancré (additif ensuite, rupture = bump majeur)", () => {
+  assert.equal(out.structuredContent.report_version, "1.0");
+});

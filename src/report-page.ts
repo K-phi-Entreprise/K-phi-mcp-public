@@ -50,6 +50,19 @@ const color = (k: Kpi) => {
   return ok ? "#1baf7a" : warn ? "#fab219" : "#d03b3b";
 };
 
+function trendArrow(id: string, series: NonNullable<AnalysisResult["series"]>): string {
+  if (series.length < 4) return "";
+  const v = (s: (typeof series)[number]) =>
+    id === "revenue" ? s.revenue : id === "ebitda" ? s.ebitda :
+    id === "ebitda_margin" && s.revenue ? (s.ebitda ?? 0) / s.revenue : undefined;
+  const a = series.slice(0, 3).map(v).filter((x): x is number => x !== undefined);
+  const b = series.slice(-3).map(v).filter((x): x is number => x !== undefined);
+  if (a.length < 2 || b.length < 2) return "";
+  const ma = a.reduce((x, y) => x + y, 0) / a.length, mb = b.reduce((x, y) => x + y, 0) / b.length;
+  if (Math.abs(mb - ma) < Math.abs(ma) * 0.03) return `<span style="color:#898781;font-size:13px"> →</span>`;
+  return mb > ma ? `<span style="color:#1baf7a;font-size:13px"> ↗</span>` : `<span style="color:#d03b3b;font-size:13px"> ↘</span>`;
+}
+
 export function renderReport(analysisId: string, r: AnalysisResult): string {
   const byId = new Map(r.kpis.map(k => [k.id, k]));
   const tiles = ["revenue", "ebitda_margin", "dso", "net_debt_ebitda"]
@@ -90,21 +103,25 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 ${caveats.length ? `<div class="cav">⚠ <b>Réserves de lecture</b> — ${caveats.map(esc).join(" ")} Le forecast et les ratios en héritent.</div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? "Voir le détail dans K-Φ")} · réf. ${refCell(k).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 ${series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center">Chiffre d'affaires &amp; EBITDA
-<span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button></span></h2>
+<span><button class="mbtn" id="bM" onclick="cmode('M')">Mensuel</button> <button class="mbtn" id="bW" onclick="cmode('W')">Waterfall</button>
+<a class="mbtn" style="text-decoration:none;border-color:#898781" href="/a/${esc(analysisId)}/open?view=forecast">Créer le forecast →</a></span></h2>
 <div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 ${covs.length ? `<h2>Covenants</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(k.label)} ${fmtV(k)} <span class="mut">seuil ${k.threshold}</span></span>`).join("")}</div>` : ""}
 ${r.alerts.length ? `<h2>Points d'attention</h2>${r.alerts.map(a => `<div class="cav">⚠ ${esc(a)}</div>`).join("")}` : ""}
-<h2>KPI</h2><table><tr><th>Indicateur</th><th class="r">Valeur</th><th class="r">Jauge</th><th class="r">Référence</th></tr>
+<h2>KPI</h2>
 ${GROUPS.map(([title, ids]) => {
   const rows = ids.map(id => byId.get(id)).filter((k): k is Kpi => !!k);
   if (!rows.length) return "";
-  return `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">${title}</td></tr>` +
-    rows.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("");
+  return `<div style="color:#b7b5af;font-weight:600;margin:14px 0 8px">${title}</div>
+  <div class="tiles" style="margin:0 0 4px">${rows.map(k =>
+    `<div class="tile"><div class="l">${esc(k.label)}</div>
+     <div class="v" style="color:${color(k)}">${fmtV(k)}${trendArrow(k.id, series)}</div>
+     <div style="margin-top:5px">${gauge(k)} <span class="r mut" style="font-size:11px">${refCell(k)}</span></div></div>`).join("")}</div>`;
 }).join("")}
 ${(() => { const gd = new Set(GROUPS.flatMap(g => g[1])); const rest = r.kpis.filter(k => !gd.has(k.id));
-  return rest.length ? `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">Autres</td></tr>` + rest.map(k => `<tr><td>${esc(k.label)}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k)}</td></tr>`).join("") : ""; })()}
-</table>
+  return rest.length ? `<div style="color:#b7b5af;font-weight:600;margin:14px 0 8px">Autres</div><div class="tiles">` +
+    rest.map(k => `<div class="tile"><div class="l">${esc(k.label)}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div><div style="margin-top:5px">${gauge(k)} <span class="r mut" style="font-size:11px">${refCell(k)}</span></div></div>`).join("") + `</div>` : ""; })()}
 <div class="mut" style="font-size:12px;margin-top:6px">Références génériques mid-market, tous secteurs — un secteur ne se déduit pas fiablement d'un grand livre seul. Précisez le vôtre dans K-Φ pour des bandes sectorielles, ou passez vos seuils réels en covenants : ils remplacent la référence.</div>
 <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px">
 <a class="cta" style="margin-top:0" href="/a/${esc(analysisId)}/open">Ouvrir l'analyse détaillée dans K-Φ →</a>

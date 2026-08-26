@@ -290,6 +290,44 @@ function pick(src: Record<string, unknown> | null | undefined, keys: string[]): 
 }
 
 /** KPI de FLUX (P&L) : sommés sur les lectures mensuelles. Tout le reste est une POSITION lue sur asOf. */
+/* ── Résolution des identifiants de covenant (revue terrain n°5) ──
+   Le matching brut « nom → id » échouait sur les exemples de notre propre
+   description d'outil (« Gearing », « Dette nette/EBITDA »). Normalisation
+   (minuscules, accents pliés, non-alphanumériques retirés) + table d'alias
+   FR/EN/DE. La variante NETTE porte une sémantique propre (net: true). */
+const COVENANT_IDS = "dscr, interest_coverage, net_debt_ebitda, debt_to_equity, current_ratio, quick_ratio, ebitda_margin, net_margin, dso, dpo, dio, ccc, roe";
+function _covNorm(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+const COVENANT_ALIASES: Record<string, { id: string; net?: boolean }> = {
+  dscr: { id: "dscr" }, debtservicecoverage: { id: "dscr" }, debtservicecoverageratio: { id: "dscr" },
+  interestcover: { id: "interest_coverage" }, interestcoverage: { id: "interest_coverage" },
+  couverturedesinterets: { id: "interest_coverage" }, couvertureinterets: { id: "interest_coverage" }, zinsdeckung: { id: "interest_coverage" },
+  gearing: { id: "debt_to_equity" }, debtequity: { id: "debt_to_equity" }, debttoequity: { id: "debt_to_equity" },
+  dettefondspropres: { id: "debt_to_equity" }, dettesurfondspropres: { id: "debt_to_equity" }, verschuldungsgrad: { id: "debt_to_equity" },
+  debtebitda: { id: "net_debt_ebitda" }, debttoebitda: { id: "net_debt_ebitda" }, detteebitda: { id: "net_debt_ebitda" },
+  dettesurebitda: { id: "net_debt_ebitda" }, leverage: { id: "net_debt_ebitda" }, levier: { id: "net_debt_ebitda" },
+  netdebtebitda: { id: "net_debt_ebitda", net: true }, netdebttoebitda: { id: "net_debt_ebitda", net: true },
+  dettenetteebitda: { id: "net_debt_ebitda", net: true }, dettenettesurebitda: { id: "net_debt_ebitda", net: true },
+  currentratio: { id: "current_ratio" }, ratiodeliquidite: { id: "current_ratio" }, ratioliquidite: { id: "current_ratio" }, liquiditegenerale: { id: "current_ratio" },
+  quickratio: { id: "quick_ratio" }, liquiditereduite: { id: "quick_ratio" }, acidtest: { id: "quick_ratio" },
+  ebitdamargin: { id: "ebitda_margin" }, margeebitda: { id: "ebitda_margin" }, margedebitda: { id: "ebitda_margin" },
+  netmargin: { id: "net_margin" }, margenette: { id: "net_margin" },
+  dso: { id: "dso" }, dpo: { id: "dpo" }, dio: { id: "dio" }, ccc: { id: "ccc" }, roe: { id: "roe" },
+};
+export function resolveCovenantMetric(name: string): { id: string; net?: boolean } | null {
+  /* L'id canonique VERBATIM désigne le KPI tel qu'affiché — priorité absolue.
+     Nécessaire car l'id historique « net_debt_ebitda » porte une valeur BRUTE :
+     normalisé, il tomberait dans l'alias net:true. La version nette s'obtient
+     par les alias en toutes lettres (« Dette nette/EBITDA », « Net debt/EBITDA »). */
+  for (const spec of KPI_SPEC) if (spec.id === name.trim()) return { id: spec.id };
+  const n = _covNorm(name);
+  if (COVENANT_ALIASES[n]) return COVENANT_ALIASES[n];
+  /* id canonique tel quel ("net_debt_ebitda" → normalisé sans underscores) */
+  for (const spec of KPI_SPEC) if (_covNorm(spec.id) === n || _covNorm(spec.label) === n) return { id: spec.id };
+  return null;
+}
+
 const FLOW_IDS = new Set(["revenue", "gross_profit", "ebitda", "operating_income", "net_income"]);
 
 function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: StatementsPayload,
@@ -425,13 +463,32 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   }
 
   for (const c of input.covenants ?? []) {
-    const key = c.name.toLowerCase().replace(/[^a-z_]/g, "");
-    const k = kpis.find(x => x.id === key || x.label.toLowerCase() === c.name.toLowerCase());
-    if (!k) { alerts.push(`Covenant « ${c.name} » : KPI non calculable sur cet export.`); continue; }
+    const res = resolveCovenantMetric(c.name);
+    if (!res) {
+      alerts.push(`Covenant « ${c.name} » : identifiant non reconnu. Identifiants acceptés : ${COVENANT_IDS} ` +
+        `(alias FR/EN tolérés, ex. Gearing, Dette nette/EBITDA, Couverture des intérêts).`);
+      continue;
+    }
+    let k = kpis.find(x => x.id === res.id);
+    if (k && res.net) {
+      /* Dette NETTE / EBITDA : sémantique distincte du ratio brut affiché —
+         (dette − trésorerie) / EBITDA, exposée comme KPI à part entière
+         plutôt qu'écrasée sur le brut (revue terrain n°5 : gross vs net). */
+      const cash = kpis.find(x => x.id === "cash")?.value;
+      const debtV = kpis.find(x => x.id === "total_debt")?.value;
+      const eb = kpis.find(x => x.id === "ebitda")?.value;
+      if (cash !== undefined && debtV !== undefined && eb) {
+        const netK: Kpi = { id: "net_debt_ebitda_net", label: "Dette nette / EBITDA", unit: "x",
+          value: (debtV - cash) / eb,
+          formula: `(dette ${Math.round(debtV).toLocaleString("fr-FR")} − trésorerie ${Math.round(cash).toLocaleString("fr-FR")}) ÷ EBITDA exercice` };
+        kpis.push(netK); k = netK;
+      }
+    }
+    if (!k) { alerts.push(`Covenant « ${c.name} » (${res.id}) : KPI non calculable sur cet export.`); continue; }
     const ok = c.operator === ">=" ? k.value >= c.threshold : c.operator === ">" ? k.value > c.threshold
              : c.operator === "<=" ? k.value <= c.threshold : k.value < c.threshold;
     k.threshold = c.threshold; k.status = ok ? "ok" : "breach";
-    if (!ok) alerts.push(`${k.label} à ${k.value} ${k.unit}, hors seuil ${c.operator} ${c.threshold} — risque de breach covenant.`);
+    if (!ok) alerts.push(`${k.label} à ${k.value.toFixed(2)} ${k.unit}, hors seuil ${c.operator} ${c.threshold} — risque de breach covenant.`);
   }
   for (const w of position.warnings ?? []) alerts.push(w);
 

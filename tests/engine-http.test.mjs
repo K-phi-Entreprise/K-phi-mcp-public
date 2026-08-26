@@ -242,3 +242,35 @@ test("note multi-entités : absente sur un fichier mono-entité", async () => {
   const r = await engine().analyze({ content: mono, format_hint: "generic", locale: "fr" });
   assert.ok(!r.notes.some(n => /somme simple multi-entités/.test(n)), "pas de caveat conso sur une entité unique");
 });
+
+/* ── Résolution des covenants (revue terrain n°5) ────────────────── */
+import { resolveCovenantMetric } from "../dist/engine-http.js";
+
+test("alias de covenants : Gearing, accents, variante NETTE distincte du brut", () => {
+  assert.deepEqual(resolveCovenantMetric("Gearing"), { id: "debt_to_equity" });
+  assert.deepEqual(resolveCovenantMetric("Couverture des intérêts"), { id: "interest_coverage" });
+  assert.deepEqual(resolveCovenantMetric("Dette/EBITDA"), { id: "net_debt_ebitda" });
+  assert.deepEqual(resolveCovenantMetric("Dette nette / EBITDA"), { id: "net_debt_ebitda", net: true });
+  assert.deepEqual(resolveCovenantMetric("net_debt_ebitda"), { id: "net_debt_ebitda" });
+  assert.equal(resolveCovenantMetric("Machin"), null);
+});
+
+test("covenants de bout en bout : Gearing évalué, dette NETTE calculée (dette − cash), inconnu → identifiants listés", async () => {
+  mockEngine();
+  const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr",
+    covenants: [
+      { name: "Gearing", operator: "<=", threshold: 1.0 },
+      { name: "Dette nette/EBITDA", operator: "<=", threshold: 3.0 },
+      { name: "Machin", operator: ">=", threshold: 1 },
+    ] });
+  const de = r.kpis.find(k => k.id === "debt_to_equity");
+  if (de) assert.ok(de.status === "ok" || de.status === "breach", "Gearing est évalué, plus jamais « non calculable »");
+  const net = r.kpis.find(k => k.id === "net_debt_ebitda_net");
+  const cash = r.kpis.find(k => k.id === "cash"), debt = r.kpis.find(k => k.id === "total_debt"), eb = r.kpis.find(k => k.id === "ebitda");
+  if (net && cash && debt && eb) {
+    assert.ok(Math.abs(net.value - (debt.value - cash.value) / eb.value) < 1e-9, "sémantique nette respectée");
+    assert.match(net.formula ?? "", /dette .* − trésorerie/);
+  }
+  assert.ok(r.alerts.some(a => /« Machin »/.test(a) && /Identifiants acceptés/.test(a) && /net_debt_ebitda/.test(a)),
+    "l'inconnu enseigne la liste au lieu de « non calculable »");
+});

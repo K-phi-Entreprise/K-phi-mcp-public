@@ -31,7 +31,11 @@ const UPLOAD_TTL_MS = 15 * 60 * 1000;
 
 const formatHint = z.enum(["sage", "cegid", "quickbooks", "xero", "odoo", "pennylane", "fec", "generic", "auto"]);
 const covenant = z.object({
-  name: z.string().describe("Nom du covenant, ex. DSCR, Dette nette/EBITDA, Gearing"),
+  name: z.string().describe(
+    "Identifiant du covenant. Canoniques : dscr, interest_coverage, net_debt_ebitda, debt_to_equity, " +
+    "current_ratio, quick_ratio, ebitda_margin, net_margin, dso, dpo, dio, ccc, roe. " +
+    "Alias FR/EN/DE tolérés (Gearing, Dette/EBITDA, Couverture des intérêts…) ; " +
+    "« Dette NETTE/EBITDA » ou « Net debt/EBITDA » évalue (dette − trésorerie)/EBITDA."),
   operator: z.enum([">=", "<=", ">", "<"]),
   threshold: z.number(),
 });

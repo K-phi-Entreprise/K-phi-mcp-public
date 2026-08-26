@@ -107,11 +107,12 @@ test("dashboard : échappement HTML des données (un nom de fichier ne devient p
   assert.match(html, /&lt;script&gt;/);
 });
 
-test("le lien est un OBJET du protocole : bloc resource_link typé, après le texte", () => {
+test("le lien est un OBJET du protocole : resource_link en PREMIER bloc (rendu par l'hôte, systématique)", () => {
   assert.equal(out.content.length, 2);
-  const rl = out.content[1];
+  const rl = out.content[0];
+  assert.equal(out.content[1].type, "text");
   assert.equal(rl.type, "resource_link");
   assert.equal(rl.uri, "https://mcp.test/a/an_test123");
-  assert.match(rl.name, /Rapport K-Φ/);
+  assert.match(rl.name, /Dashboard K-Φ/);
   assert.equal(rl.mimeType, "text/html");
 });

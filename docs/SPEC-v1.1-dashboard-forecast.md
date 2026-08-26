@@ -48,3 +48,14 @@ argumentée par écrit dans la PR.
    /api/statements passe par runEngine et CONTOURNE les droits de modules
    UI — vérifier ce contournement en test, et décider côté produit si le
    module s'ouvre aussi aux sandbox dans l'app.
+
+## PRIORITÉ 0 (2026-08-26, exigence fondateur : « je le veux SYSTÉMATIQUEMENT »)
+Le systématique = ce que le CLIENT rend, jamais ce que le relais veut bien
+écrire. Deux étages :
+a) FAIT : resource_link en PREMIER bloc de contenu — carte rendue par
+   l'hôte à chaque appel, avant le texte du relais.
+b) À IMPLÉMENTER EN PREMIER (avant même les fondations) : le dashboard
+   /a/:id embarqué comme ressource HTML interactive (MCP Apps / UI
+   embarquée) — la page ELLE-MÊME rendue DANS la conversation à chaque
+   analyse, tuiles + graphique + covenants inline, zéro clic, zéro relais.
+   Vérifier le support du SDK épinglé ; sinon bump SDK dans la même PR.

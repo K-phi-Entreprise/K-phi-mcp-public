@@ -34,13 +34,16 @@ test("le lien est un CTA de tête : titre ##, MAJUSCULES, dans les 6 premières 
   assert.ok(lines[idx].includes("https://mcp.test/a/an_test123"));
 });
 
-test("l'assistant appelant est invité à relayer le lien en évidence", () => {
-  assert.match(text, /transmettre ce lien tel quel/);
+test("consigne au relais : une ligne prête à copier, jamais l'URL brute seule", () => {
+  assert.match(text, /reproduire la ligne suivante telle quelle/);
+  assert.match(text, /jamais l'URL brute/);
+  /* la ligne à copier est un blockquote-titre autonome avec le lien Markdown */
+  assert.match(text, /> ## 📊 \[Ouvrir l'analyse complète dans K-Φ\]\(https:\/\/mcp\.test\/a\/an_test123\)/);
 });
 
-test("le lien apparaît DEUX fois (tête + rappel de pied)", () => {
+test("le lien apparaît TROIS fois (CTA + ligne à copier + rappel de pied)", () => {
   const n = text.split("https://mcp.test/a/an_test123").length - 1;
-  assert.equal(n, 2);
+  assert.equal(n, 3);
 });
 
 test("KPI en tableaux Markdown groupés, avec jauge et état coloré", () => {

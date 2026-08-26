@@ -239,6 +239,20 @@ export function recordAnalysisSignals(usage: UsageCounter, detected?: {
 }
 
 export function registerTools(server: McpServer, deps: ToolDeps) {
+  /* PROMPT MCP — le canal LÉGITIME pour la consigne de restitution : un
+     prompt est choisi par l'UTILISATEUR et son texte devient un message
+     utilisateur. « Présente le dashboard en tête » vit donc ici — jamais
+     dans une sortie d'outil (doctrine « tool output is data »). */
+  server.registerPrompt("analyser-export-kphi", {
+    title: "Analyser un export comptable avec K-Φ",
+    description: "Analyse un export (CSV/FEC/balance/grand livre) via le moteur K-Φ et présente le dashboard interactif avec la synthèse.",
+  }, async () => ({
+    messages: [{ role: "user" as const, content: { type: "text" as const, text:
+      "Analyse le fichier comptable que je fournis avec l'outil kphi_analyze_ledger. " +
+      "Dans ta réponse : présente d'abord le lien du dashboard K-Φ (champ analysis_url du résultat) " +
+      "en évidence, puis ta synthèse des KPI, alertes et covenants. Si l'outil signale un paramètre " +
+      "manquant ou un mapping à corriger (column_map), applique sa suggestion et relance." } }],
+  }));
   server.registerResource("mapping-guide", "kphi://mapping-guide", {
     title: "Guide de mapping K-Φ",
     description: "Champs de column_map et pièges connus par ERP — à consulter avant de corriger un mapping.",

@@ -1,3 +1,31 @@
+# ★ NON NÉGOCIABLE — FORECAST = CŒUR DE LA VALUE PROP (2026-08-26)
+
+Exigence fondateur, verbatim : « we need a button — no matter what is asked.
+Forecast by entity / global / by BU, exactly like in K-Φ. Auto-apply DSO/DPO
+as we store it sliced & diced in K-Φ. Expand/drill down from the total
+chart. It is non negotiable. »
+
+ORDRE D'EXÉCUTION RÉVISÉ : le forecast passe DEVANT TOUT — y compris les
+fondations, sauf dépendance technique stricte.
+
+CRITÈRES D'ACCEPTATION (la PR qui ne les remplit pas tous ne merge pas) :
+1. BOUTON « Projeter » toujours présent sur /a/:id — actif dès ?fc=1 ;
+   clic → panneau INLINE dans la page (jamais une redirection).
+2. Sélecteur de périmètre : Entité (défaut) | Global | BU — mêmes
+   dimensions que K-Φ, mêmes agrégats. Changer le périmètre recalcule
+   projection ET méthodes affichées.
+3. DSO/DPO(/DIO) AUTO-APPLIQUÉS depuis les valeurs stockées par périmètre
+   dans le moteur (_dsoByEntity/_dpoByEntity/_dsoByBU) — affichés sur les
+   cartes de méthodes avec provenance : « DSO 141 j (observé GL, MER-DE) ».
+   Jamais une valeur groupe appliquée à une entité.
+4. DRILL-DOWN : le graphique total est dépliable — clic sur le total →
+   décomposition par entité (puis BU) du réel ET de la projection, mêmes
+   couleurs réel/gris-projeté.
+5. Zéro calcul MCP : tout vient de runEngine (FC_PROJ, fcBlocked, règles) ;
+   fcBlocked rendu tel quel (ex. stocks bloqués sans COGS).
+6. Le bouton existe MÊME quand fc est bloqué : il ouvre le panneau avec
+   les raisons — jamais absent, jamais un cul-de-sac.
+
 # SPEC v1.1 — Dashboard = maquette, moteur = seule source (ENGAGEMENT)
 
 Ratifié avec le fondateur le 2026-08-26. Définition de FINI : la page /a/:id

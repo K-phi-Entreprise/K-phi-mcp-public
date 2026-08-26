@@ -38,3 +38,13 @@ Gates inchangés (genre, COGS absent → stocks bloqués). route-table --write.
 des balances multi-périodes → ③ devise détectée propagée → PR moteur fc=1
 → PR MCP v1.1 → dashboard fidèle. Toute déviation de cette spec doit être
 argumentée par écrit dans la PR.
+
+## Constats du 2026-08-26 (test fondateur, à intégrer)
+1. Le bouton-redirection vers l'app était un pis-aller CONTRAIRE au principe :
+   le forecast se REND dans la page /a/:id (HTML Claude), calculé par le
+   moteur. Le bouton devient le déclencheur du panneau inline dès ?fc=1.
+2. Bug d'entitlement découvert : le tenant sandbox n'a PAS le module
+   forecast dans l'UI (« You don't have access to this module »). ?fc=1 via
+   /api/statements passe par runEngine et CONTOURNE les droits de modules
+   UI — vérifier ce contournement en test, et décider côté produit si le
+   module s'ouvre aussi aux sandbox dans l'app.

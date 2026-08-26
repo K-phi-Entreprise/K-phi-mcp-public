@@ -24,7 +24,7 @@ const R = {
 };
 
 const out = present(deps, "an_test123", R);
-const text = out.content[0].text;
+const text = out.content.find(c => c.type === "text").text;
 const lines = text.split("\n");
 
 test("le lien est un CTA de tête : titre ##, MAJUSCULES, dans les 6 premières lignes après la synthèse", () => {

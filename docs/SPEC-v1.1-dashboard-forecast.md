@@ -1,3 +1,59 @@
+# ★★ v1.2 — NON NÉGOCIABLE : LE PÉRIMÈTRE PILOTE TOUTE LA PAGE (2026-08-27)
+
+Exigence fondateur, verbatim : « scope should be on very top and drive all
+figures & charts on that page » — puis : « actually same goes for analytics
+discovered in the file ».
+
+Le sélecteur en tête est livré (#55). Ce qu'il ne pilote PAS encore : les
+agrégats RÉELS (tuiles, KPI, graphique historique), pour les entités comme
+pour les valeurs d'axe analytique. Deux chantiers, dans cet ordre.
+
+## ① PR moteur — `series_by_scope` (débloque tout le reste)
+`GET /api/statements?...&fc=1&entity=X` (ou `&bu=X`) renvoie EN PLUS :
+- `series_by_scope`: { period → { revenue, ebitda, personnel, other_opex } }
+  pour le périmètre appelé ;
+- `kpi_by_scope`: les mêmes id de KPI que le groupe, calculés sur le scope
+  (au minimum : revenue, gross_profit, ebitda, ebitda_margin, net_income,
+  dso, dpo, working_capital) ;
+- `scope_coverage`: part des lignes du scope portant des comptes de bilan —
+  pour dire honnêtement quand un ratio de position n'est pas calculable
+  sur ce périmètre (cas mesuré : centre de profit = 81 % du P&L, 26 % du
+  bilan sur l'export SAP réel).
+Aucun calcul MCP : le connecteur relaie, le dashboard rend.
+
+CRITÈRES D'ACCEPTATION v1.2 :
+1. Changer le périmètre en tête met à jour : tuiles, KPI, graphique
+   historique, covenants, projection, méthodes, décomposition.
+2. Un KPI non calculable sur le périmètre s'affiche « — » avec la raison au
+   survol, JAMAIS une valeur groupe présentée comme celle du périmètre.
+3. La barre cesse d'afficher la réserve « les tuiles restent groupe » : elle
+   n'a plus lieu d'être.
+4. Le PDF exporte le périmètre sélectionné, titre inclus.
+
+## ② Multi-axes dans UNE analyse (sans relancer)
+Aujourd'hui le moteur n'a qu'un slot analytique (`bu`) + le tiers (`tp`) :
+une analyse découpe sur UN axe, changer d'axe = relancer avec
+`analytic_axis`. Cible : l'import porte TOUTES les dimensions détectées, et
+le scoping devient générique — `?dim=<colonne>&val=<valeur>` — pour que le
+sélecteur de tête bascule Profit center → Cost center → Segment sans
+relancer. C'est ce que l'app K-Φ sait déjà faire ; le funnel doit s'aligner.
+
+CRITÈRES D'ACCEPTATION :
+1. Le sélecteur de tête liste : Global, chaque entité, puis chaque AXE
+   détecté avec ses valeurs (groupées par axe).
+2. Basculer d'axe ne relance rien : les données sont déjà là.
+3. La couverture de chaque axe reste affichée (déjà livré, #54) et un axe
+   sans comptes de bilan explique sa projection nulle (déjà livré).
+
+## Ordre
+① d'abord (extension du payload existant, débloque entités ET axes d'un
+coup), ② ensuite (touche import + scoping moteur), ③ en continu : garder
+nette la ligne de partage aperçu / plateforme — l'aperçu montre ce que le
+fichier permet honnêtement, la plateforme fait FX, intercos et analytique
+complet.
+
+---
+
 # ★ NON NÉGOCIABLE — FORECAST = CŒUR DE LA VALUE PROP (2026-08-26)
 
 Exigence fondateur, verbatim : « we need a button — no matter what is asked.

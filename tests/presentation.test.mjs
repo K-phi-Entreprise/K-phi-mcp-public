@@ -75,7 +75,7 @@ test("contrat versionné : report_version 1.0 ancré (additif ensuite, rupture =
 import { renderReport } from "../dist/report-page.js";
 
 test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles", () => {
-  const html = renderReport("an_x1", { ...R,
+  const html = renderReport("an_x1", { ...R, locale: "fr",
     series: [{ period: "2025-01", revenue: 3.4e6, ebitda: 6e4 }, { period: "2025-02", revenue: 3.2e6, ebitda: 7e4 }],
     notes: ["Ces chiffres sont une somme simple multi-entités (…)"],
     detected: { ...R.detected, currency: "USD, EUR" } });
@@ -95,13 +95,13 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
 });
 
 test("dashboard mono-entité mono-devise : AUCUN bandeau de réserves à tort", () => {
-  const html = renderReport("an_x2", { ...R, series: [] });
+  const html = renderReport("an_x2", { ...R, locale: "fr", series: [] });
   assert.doesNotMatch(html, /Réserves de lecture/);
   assert.doesNotMatch(html, /Chiffre d'affaires &amp; EBITDA/, "pas de section graphique mensuel sans série (la lib, elle, sert au panneau forecast)");
 });
 
 test("dashboard : échappement HTML des données (un nom de fichier ne devient pas du script)", () => {
-  const html = renderReport("an_x3", { ...R, alerts: ['<script>alert(1)</script>'] });
+  const html = renderReport("an_x3", { ...R, locale: "fr", alerts: ['<script>alert(1)</script>'] });
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;/);
 });
@@ -125,17 +125,17 @@ test("forecast : bouton toujours, __FC injecté échappé, méthodes avec proven
     by_bu: {},
     methods: { dso_by_entity: { E2: { value: 141, source: "gl_observed", basis: 8200 } },
                dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
-  const html = renderReport("an_fc", { ...R, forecast: fc, report_version: "1.1",
+  const html = renderReport("an_fc", { ...R, locale: "fr", forecast: fc, report_version: "1.1",
     series: [{ period: "2025-01", revenue: 3.4e6, ebitda: 6e4 }, { period: "2025-02", revenue: 3.2e6, ebitda: 7e4 }] });
   assert.match(html, /id="bF"[^>]*>Projeter/, "bouton présent avec forecast");
   assert.ok(!html.includes("E</script>1"), "nom d'entité hostile échappé dans __FC (\\u003c)");
   assert.match(html, /observé GL/, "provenance des méthodes rendue");
-  assert.match(html, /CA réel \(exercice\)/, "drill : barres réel + projeté");
+  assert.match(html, /"realBar":"CA réel"/, "drill : libellés réel + projeté injectés via __FT");
   assert.match(html, /Projection bloquée par le moteur/, "chemin fcBlocked rendu tel quel");
 });
 
 test("forecast absent (analyse 1.0) : le bouton EXISTE quand même et explique (critère 6)", () => {
-  const html = renderReport("an_old", { ...R });
+  const html = renderReport("an_old", { ...R, locale: "fr" });
   assert.match(html, /id="bF"[^>]*>Projeter/);
   assert.match(html, /antérieure au contrat 1\.1/);
 });
@@ -145,7 +145,7 @@ test("durcissement : Chart.js émis UNE fois, inconditionnel — balance mono-mo
     by_entity: { E1: { series: [{ period: "2026-01", sales: 60 }], blocked: null },
                  E2: { series: [{ period: "2026-01", sales: 40 }], blocked: null } },
     by_bu: {}, methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
-  const html = renderReport("an_tb", { ...R, forecast: fc, report_version: "1.1", series: [] });
+  const html = renderReport("an_tb", { ...R, locale: "fr", forecast: fc, report_version: "1.1", series: [] });
   assert.equal(html.split("chart.umd.js").length - 1, 1, "CDN une seule fois");
   assert.match(html, /const FOPT=/, "options de repli présentes sans le graphique principal");
 });
@@ -159,4 +159,24 @@ test("la PREMIÈRE ligne de kphi_analyze_ledger est bilingue et porte les décle
     assert.ok(new RegExp(kw, "i").test(firstLine + src.slice(src.indexOf(firstLine), src.indexOf(firstLine) + 700)),
       `déclencheur visible manquant : ${kw}`);
   assert.match(src, /Analyse et prévision d'un export comptable/, "la ligne reste bilingue — jamais un fix mono-langue");
+});
+
+/* ── i18n (2026-08-27, fondateur : « in ENGLISH ») ───────────────── */
+test("locale absente → dashboard en ANGLAIS par défaut ; labels KPI traduits ; Projeter dans la barre du graphique", () => {
+  const html = renderReport("an_en", { ...R,
+    series: [{ period: "2025-01", revenue: 3.4e6, ebitda: 6e4 }, { period: "2025-02", revenue: 3.2e6, ebitda: 7e4 }] });
+  assert.match(html, /K-Φ — Analysis /);
+  assert.match(html, /Reading caveats|Attention points|Project forecast/);
+  assert.match(html, /EBITDA margin/, "label KPI anglais");
+  assert.doesNotMatch(html, /Marge d'EBITDA/);
+  /* le bouton vit dans la barre du graphique, à côté des modes */
+  const ti = html.indexOf("Revenue & EBITDA");
+  assert.match(html.slice(ti, ti + 400), /id="bF"/, "Project forecast → dans l'en-tête du graphique, pas en bas de page");
+});
+
+test("Rentabilité seule en tuiles ; Trésorerie et Structure en table", () => {
+  const html = renderReport("an_split", { ...R, locale: "fr" });
+  const kpiZone = html.slice(html.indexOf("<h2>KPI</h2>"));
+  assert.match(kpiZone, /📈 Rentabilité[\s\S]*class="tiles"/, "groupe 0 en tuiles");
+  assert.match(kpiZone, /<table>[\s\S]*💧 Trésorerie[\s\S]*🏦 Structure/, "groupes 1-2 en table");
 });

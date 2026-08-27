@@ -249,3 +249,11 @@ test("forecast sans budget : le graphique montre les ENCAISSEMENTS projetés + l
   assert.match(html, /okD=v=>/, "garde-fou DSO présent");
   assert.match(html, /id="fcdoc"/, "emplacement de la note doctrine rendu");
 });
+
+test("page d'upload : la zone de dépôt est un bloc (un <label> inline provoquait le chevauchement)", async () => {
+  const { uploadPageHtml } = await import("../dist/upload-page.js");
+  const html = uploadPageHtml();
+  assert.match(html, /\.drop\{display:block;width:100%/, "label passé en bloc");
+  assert.match(html, /\.drop \.big\{display:block/, "les libellés internes aussi");
+  assert.match(html, /\.steps li\{flex:1 1 210px;display:flex/, "étapes en flux, hauteur garantie");
+});

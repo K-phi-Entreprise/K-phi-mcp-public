@@ -24,16 +24,17 @@ header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1
 h1{font-size:30px;margin:0;letter-spacing:-.5px}
 .sub{color:#898781;font-size:15px}
 .steps{list-style:none;display:flex;gap:10px;padding:0;margin:22px 0 0;font-size:14px;flex-wrap:wrap}
-.steps li{flex:1;min-width:210px;color:#65635e;border-top:3px solid #2c2b30;padding-top:10px}
-.steps li b{display:inline-block;width:21px;height:21px;line-height:21px;text-align:center;border-radius:50%;background:#2c2b30;color:#898781;font-size:12px;margin-right:7px}
+.steps li{flex:1 1 210px;display:flex;align-items:center;color:#65635e;border-top:3px solid #2c2b30;padding-top:10px;min-height:38px}
+.steps li b{flex:none;display:inline-block;width:21px;height:21px;line-height:21px;text-align:center;border-radius:50%;background:#2c2b30;color:#898781;font-size:12px;margin-right:7px}
 .steps li.cur{color:#e8e6e1;border-top-color:#e8e03c}.steps li.cur b{background:#e8e03c;color:#141317}
 .steps li.done{color:#898781;border-top-color:#4a6b46}.steps li.done b{background:#4a6b46;color:#e8e6e1}
 .cols{display:grid;grid-template-columns:1.55fr 1fr;gap:26px;margin-top:26px}
 @media(max-width:900px){.cols{grid-template-columns:1fr}}
-.drop{border:2px dashed #2c2b30;border-radius:16px;padding:72px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#18171b}
+.drop{display:block;width:100%;border:2px dashed #2c2b30;border-radius:16px;padding:72px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#18171b}
 .drop:hover{border-color:#4a4941}.drop.on{border-color:#e8e03c;background:#1f1e18}
-.drop .ic{font-size:52px;display:block;margin-bottom:12px}
-.drop .big{font-size:20px;font-weight:600}.drop .mut{color:#898781;font-size:14px;margin-top:8px}
+.drop .ic{font-size:52px;display:block;margin-bottom:12px;line-height:1}
+.drop .big{display:block;font-size:20px;font-weight:600}
+.drop .mut{display:block;color:#898781;font-size:14px;margin-top:8px}
 .drop input{display:none}
 .panel{background:#18171b;border:1px solid #2c2b30;border-radius:16px;padding:22px}
 .panel h2{font-size:14px;text-transform:uppercase;letter-spacing:.9px;color:#898781;margin:0 0 12px}
@@ -52,7 +53,7 @@ kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospac
 <header><h1>K-Φ — Secure upload</h1><span class="sub">Single-use link · valid 15 minutes · the file goes straight to the K-Φ engine, not through Claude</span></header>
 <ol class="steps"><li id="s1" class="cur"><b>1</b> Select your export</li><li id="s2"><b>2</b> Send it to K-Φ</li><li id="s3"><b>3</b> Reply “done” in your Claude chat</li></ol>
 <div class="cols">
-<div>
+<div style="min-width:0;display:flex;flex-direction:column">
 <label class="drop" id="dz"><span class="ic">📄</span><span class="big" id="dzl">Drop your ledger export here</span><span class="mut">or click to browse — up to 500 MB</span><input type="file" id="f"></label>
 <button class="btn" id="go" disabled>Send to K-Φ</button>
 <div class="bar" id="bar"><b id="pct"></b></div>

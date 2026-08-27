@@ -352,3 +352,14 @@ test("filtres : DEUX champs en tête (entité + axe analytique), exclusifs, axe 
   assert.match(html, /if\(which==='e'&&se\.value!=='g:'&&sa\)sa\.value='g:'/, "les deux champs sont exclusifs");
   assert.match(html, /"kpi":\{"revenue":400000\}/, "les KPI par valeur d'axe sont embarqués");
 });
+
+test("attente d'analyse : barre indéterminée + spinner + étapes réelles, animations coupables", async () => {
+  const { uploadPageHtml } = await import("../dist/upload-page.js");
+  const html = uploadPageHtml();
+  assert.match(html, /class="ind"/, "barre indéterminée");
+  assert.match(html, /class="spin"/, "spinner");
+  assert.match(html, /Classifying accounts and building statements/, "étapes réelles du moteur");
+  assert.match(html, /Projecting cash flows per entity/);
+  assert.match(html, /prefers-reduced-motion/, "animations désactivables (accessibilité)");
+  assert.doesNotMatch(html, /width:\s*\d+%.*progress/i, "aucune fausse progression en pourcentage");
+});

@@ -297,7 +297,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
            qui diffèrent les descriptions (retour relais 2026-08-27). Bilingue,
            déclencheurs FACTUELS en tête — des capacités, jamais du placement. */
         "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
-        "Xero, Sage — ≤ 2 MB raw CSV; a ~5,000-row export is typically ~1.3 MB and fits): financial statements, " +
+        "Xero, Sage): financial statements, " +
         "30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
         "entity/BU forecast with GL-observed DSO/DPO. — Analyse et prévision d'un export comptable via le moteur " +
         "K-Φ : états financiers, 30 KPI, covenants, forecast par périmètre. CONTRAT DE SORTIE (report_version 1.1) : " +
@@ -325,7 +325,15 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
            définitive, résultat complet inline — le lien est ADDITIF. */
         "Données : tenant sandbox isolé, supprimé DÉFINITIVEMENT (hard delete) sous 24 h si non réclamé ; " +
         "aucun réemploi. Tous les KPI, alertes et le forecast sont renvoyés INLINE dans structuredContent — " +
-        "le lien dashboard est additif, rien n'est enfermé derrière.",
+        "le lien dashboard est additif, rien n'est enfermé derrière. " +
+        /* Fait découvert par un relais (2026-08-27) : « 1.32 MB ≈ 350,000
+           tokens of CSV — I can't emit that ». La voie inline est bornée par
+           la SORTIE de l'assistant, pas par le plafond serveur : le dire. */
+        "INPUT PATHS — content accepts raw CSV up to 2 MB, but an assistant typing the file into the call is " +
+        "limited by its own output (~a few hundred KB at best): for any real file, call kphi_request_upload " +
+        "first — the user uploads via a link (≤ 500 MB) and the file reaches the engine without transiting " +
+        "through you. Voie normale pour un vrai fichier : kphi_request_upload (lien ≤ 500 Mo), " +
+        "content inline pour les petits extraits.",
       inputSchema: {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),

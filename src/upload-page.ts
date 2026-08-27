@@ -53,7 +53,7 @@ go.addEventListener('click',function(){
   x.onload=function(){
     if(x.status===202||x.status===200){
       pct.style.width='100%';
-      msg.innerHTML='<span class="ok">✅ File received.</span> Return to your Claude conversation and say the upload is done — the analysis will start from there. <span class="mut" lang="fr">· Fichier reçu : revenez dans Claude et dites que c\\'est fait.</span>';
+      msg.innerHTML='<span class="ok">✅ File received — nothing else to do here, you can close this tab.</span><br><br><b>Next step:</b> switch back to your Claude conversation (the tab where you got this link) and simply reply <b>“done”</b>. Claude will fetch the analysis. <span class="mut" lang="fr">· Fichier reçu, vous pouvez fermer cet onglet. Retournez dans votre conversation Claude et répondez simplement «&nbsp;done&nbsp;» — l\\'analyse sera récupérée.</span>';
       dz.style.display='none';go.style.display='none';
     }else{
       var e;try{e=JSON.parse(x.responseText).error;}catch(_){e=x.status+' '+x.statusText;}

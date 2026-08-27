@@ -332,8 +332,23 @@ test("rescope : les KPI du périmètre viennent du moteur ; un KPI absent du pé
   const html = renderReport("an_rs", { ...R, forecast: fx, report_version: "1.1",
     series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
   assert.match(html, /data-kpi="ebitda_margin"/, "les valeurs rescopables sont marquées dans le DOM");
-  assert.match(html, /function applyScopeKpis\(\)/, "application des KPI de périmètre");
+  assert.match(html, /function applyScopeKpis\(v\)/, "application des KPI de périmètre");
   assert.match(html, /GROUPVALS\[i\]/, "retour à Global restaure les valeurs groupe");
   assert.match(html, /Not computable on this scope/, "raison affichée pour un KPI hors périmètre");
   assert.match(html, /"kpi":\{"revenue":2500000/, "les KPI de périmètre sont embarqués");
+});
+
+test("filtres : DEUX champs en tête (entité + axe analytique), exclusifs, axe masqué si absent", () => {
+  const fx = { horizon_months: 2, global: { series: [{ period: "2026-01", collections: 10 }], blocked: null },
+    by_entity: { "1000": { series: [], blocked: null, kpi: { revenue: 1e6 } } },
+    by_bu: { "CC-100": { series: [], blocked: null, kpi: { revenue: 4e5 } } },
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_2f", { ...R, forecast: fx, report_version: "1.1",
+    analytic_axis: { label: "Cost center", column: "Cost Center" },
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /id="fcs"/, "champ entité");
+  assert.match(html, /id="fcax"/, "champ axe analytique");
+  assert.match(html, /id="axlbl">Cost center/, "le champ porte le nom réel de l'axe");
+  assert.match(html, /if\(which==='e'&&se\.value!=='g:'&&sa\)sa\.value='g:'/, "les deux champs sont exclusifs");
+  assert.match(html, /"kpi":\{"revenue":400000\}/, "les KPI par valeur d'axe sont embarqués");
 });

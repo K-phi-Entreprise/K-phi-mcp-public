@@ -23,6 +23,8 @@ export interface LedgerEntry {
   date: string;      // YYYY-MM-DD
   period: string;    // YYYY-MM
   entity: string;
+  /** Business unit / segment / centre de profit — alimente les vues par BU. */
+  bu?: string;
   desc: string;
   ccy: string;
   entry_id: string;
@@ -56,6 +58,10 @@ export interface ParseResult {
   format: "fec" | "csv";
   entries: LedgerEntry[];
   entities: string[];
+  /** Business units présentes dans l'export (axe de scope pour le forecast). */
+  bus: string[];
+  /** code entité → nom lisible, quand l'export porte les deux. */
+  entityNames: Record<string, string>;
   currency: string;
   period_from: string;
   period_to: string;
@@ -286,6 +292,16 @@ const SYN: Record<string, string[]> = {
   dc_ind: ["shkzg", "sens", "dcind", "debitcreditind", "debitcreditindicator", "debitcredit", "dcflag", "sh", "dc"],
   /* Intacct : LOCATIONID = ENTITÉ, pas un lieu (piège documenté). */
   entity: ["entite", "entité", "entity", "societe", "société", "company", "companycode", "bukrs", "rbukrs", "dataareaid", "subsidiary", "locationid", "site", "fcy", "legalentity", "dossier"],
+  /* Axe BU — multilingue et multi-ERP : segment SAP (PRCTR/centre de profit),
+     division, département, branche, activité, business unit. Sans lui, le
+     moteur ne peut pas produire de vue par BU (demande fondateur). */
+  bu: ["bu", "businessunit", "business_unit", "uniteoperationnelle", "unitéoperationnelle", "division",
+       "segment", "departement", "département", "department", "prctr", "profitcenter", "centredeprofit",
+       "gsber", "businessarea", "domaineactivite", "branche", "branch", "activite", "activité", "secteur",
+       "costcenter", "kostl", "centredecout", "centredecoût", "dimension1", "class", "classe"],
+  /* Nom lisible de l'entité, quand l'export le porte à côté du code. */
+  ename: ["entityname", "companyname", "nomsociete", "nomsociété", "raisonsociale", "butxt", "name1",
+          "companytext", "societename", "libelleentite", "libellésociété", "legalentityname", "subsidiaryname"],
   ccy:    ["devise", "currency", "currencycode", "ccy", "monnaie", "waehrung", "waers", "rhcur", "rtcur", "basecurr"],
   tp:     ["tiers", "thirdparty", "counterparty", "compaux", "compauxnum", "auxiliaire", "customer", "vendor", "supplier", "partner", "lifnr", "kunnr", "contact", "contactname", "sourcename", "payee", "vendorid", "customerid", "vendorname", "customername", "suppliername", "businesspartner"],
   ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal", "xblnr", "zuonr", "refno", "referencenumber"],
@@ -385,6 +401,7 @@ function mapHeaders(header: string[], skip: Set<number> = new Set()): Partial<Re
 }
 
 function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpts = {}): ParseResult {
+  const entityNames: Record<string, string> = {};
   const header = splitLine(lines[0], delim);
   const normH = header.map(normHeader);
   const warnings: string[] = [];
@@ -540,8 +557,13 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const ccy = m.ccy != null && c[m.ccy] ? c[m.ccy].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
     if (m.id != null && c[m.id]) docIdRows++;
+    if (m.ename != null && c[m.ename] && rowEntity) {
+      const nm = String(c[m.ename]).trim();
+      if (nm && nm !== rowEntity && !entityNames[rowEntity]) entityNames[rowEntity] = nm;
+    }
     entries.push({
       acct, dr, cr, date, period: period(date), entity: rowEntity,
+      ...(m.bu != null && c[m.bu] ? { bu: String(c[m.bu]).trim() } : {}),
       desc: m.desc != null ? (c[m.desc] ?? "") : "", ccy,
       entry_id: `${m.id != null && c[m.id] ? c[m.id] : "r"}_${i}`,
       tp: m.tp != null && c[m.tp] ? c[m.tp] : undefined,
@@ -600,6 +622,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
 
   const res = finish("csv", entries, dropped, warnings, ccys, coaDict,
     entries.length ? docIdRows / entries.length : 0);
+  res.entityNames = entityNames;
   res.column_map = columnMap;
   res.unmapped_headers = unmapped;
   res.name_source = nameSource;
@@ -657,6 +680,8 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
   return {
     format, entries,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
+    bus: [...new Set(entries.map(e => e.bu))].filter((b): b is string => !!b),
+    entityNames: {},
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
     dropped, warnings, genre: detectGenre(entries, docIdFrac), coa_dict: coaDict,
     column_map: {}, unmapped_headers: [], overrides_applied: 0,

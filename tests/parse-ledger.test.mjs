@@ -149,3 +149,16 @@ test("colonne devise non monétaire (taux de change) : ignorée à la source, ja
   const ok = parseLedger(csv.replace(/0\.01/g, "USD"), "generic");
   assert.equal(ok.currency, "USD", "une vraie devise passe");
 });
+
+test("colonnes BU et nom de société : captées (axe BU + libellés lisibles)", () => {
+  const csv = "Date,Company Code,Company Name,Profit Center,Account,AccountName,Debit,Credit\n" +
+    "2025-01-15,1000,Meridian France,RETAIL,411000,Clients,100.00,0.00\n" +
+    "2025-01-15,1000,Meridian France,RETAIL,701000,Ventes,0.00,100.00\n" +
+    "2025-01-15,2000,Meridian GmbH,WHOLESALE,411000,Clients,50.00,0.00\n" +
+    "2025-01-15,2000,Meridian GmbH,WHOLESALE,701000,Ventes,0.00,50.00\n";
+  const r = parseLedger(csv, "generic");
+  assert.deepEqual(r.bus.sort(), ["RETAIL", "WHOLESALE"], "l'axe BU est extrait");
+  assert.equal(r.entityNames["1000"], "Meridian France", "code → nom lisible");
+  assert.equal(r.entityNames["2000"], "Meridian GmbH");
+  assert.ok(r.entries.every(e => e.bu), "chaque écriture porte sa BU (transmise au moteur)");
+});

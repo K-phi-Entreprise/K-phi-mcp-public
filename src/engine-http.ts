@@ -127,7 +127,9 @@ export class KphiHttpEngine implements AnalysisEngine {
       ...parsed.entries.map(e => e.entity).filter((x): x is string => !!x),
       ...Object.keys(_posRa["_dsoByEntity"] ?? {}),
     ])].slice(0, 8);
-    const buScopes = Object.keys(_posRa["_dsoByBU"] ?? {}).slice(0, 4);
+    /* BU = union parseur ∪ moteur (le parseur voit la colonne, le moteur voit
+       ce qu'il a su rattacher) — cap 6, même logique que les entités. */
+    const buScopes = [...new Set([...(parsed.bus ?? []), ...Object.keys(_posRa["_dsoByBU"] ?? {})])].slice(0, 6);
     const fcScope = async (p: { entity?: string; bu?: string }) => {
       try { const s = await this.statements(sb.token, { asOf: last, ...p, fc: true, horizon: 6 });
             return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null }; }
@@ -140,6 +142,9 @@ export class KphiHttpEngine implements AnalysisEngine {
 
     const result = toAnalysisResult(parsed, position, monthly, input, periods);
     result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
+    /* Noms lisibles : le dashboard affiche « 1000 — Meridian France » plutôt
+       qu'un code nu, quand l'export porte les deux colonnes. */
+    if (Object.keys(parsed.entityNames ?? {}).length) result.entity_names = parsed.entityNames;
     result.report_version = "1.1";
     result.locale = input.locale === "fr" ? "fr" : "en";
     if (fcRulesSeeded > 0)

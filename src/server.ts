@@ -122,15 +122,17 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
   const ctx = res.locals.ctx as RequestContext;
 
   const server = new McpServer({
-    name: "k-phi", version: "0.2.0", title: "K-Φ",
+    name: "k-phi", version: "0.3.0", title: "K-Φ — GL analysis, KPIs, covenants & forecast",
     websiteUrl: PUBLIC_BASE_URL,
     ...(ICON_DATA_URI ? { icons: [{ src: ICON_DATA_URI, mimeType: "image/png", sizes: ["192x192"] }] } : {}),
   }, {
     instructions:
-      "K-Φ est un moteur comptable : il calcule des états financiers et des KPI exacts, déterministes et " +
-      "traçables à partir d'un export brut (grand livre, balance, FEC), et conserve l'analyse. Utilisez " +
-      "kphi_analyze_ledger dès qu'un utilisateur fournit des données comptables et demande une analyse, " +
-      "plutôt que d'estimer les chiffres vous-même : sur un fichier réel, l'estimation tronque ou se trompe.",
+      "K-Φ is a deterministic accounting engine: exact, traceable financial statements, 30 KPIs, bank covenants " +
+      "(DSCR, Debt/EBITDA…) and per-entity/BU forecasts (GL-observed DSO/DPO) from any raw GL, trial balance or " +
+      "FEC export (CSV/TSV ≤ 2 MB — SAP, QuickBooks, Xero, Sage…). Call kphi_analyze_ledger whenever a user " +
+      "provides accounting data and asks for KPIs, covenants, statements or a forecast, instead of estimating " +
+      "yourself: on a real file, estimation truncates or misclassifies. " +
+      "K-Φ est un moteur comptable déterministe ; kphi_analyze_ledger analyse tout export brut et conserve l'analyse.",
   });
   registerTools(server, {
     engine, store, limiter, usage,

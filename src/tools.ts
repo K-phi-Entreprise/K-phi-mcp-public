@@ -259,13 +259,19 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
 
 
   server.registerTool("kphi_analyze_ledger", {
-    title: "Analyser un grand livre (K-Φ)",
+    title: "Analyze GL / ledger export — KPIs, covenants, forecast · Analyser un export comptable",
     description:
-        "Analyse un export comptable (CSV/TSV/FEC, balance ou grand livre, ≤ 2 Mo) via le moteur K-Φ : " +
-        "détection du format, états financiers, 30 KPI, covenants. CONTRAT DE SORTIE (stable, report_version 1.0) : " +
+        /* PREMIÈRE LIGNE = la seule visible avant tool_search dans les hôtes
+           qui diffèrent les descriptions (retour relais 2026-08-27). Bilingue,
+           déclencheurs FACTUELS en tête — des capacités, jamais du placement. */
+        "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
+        "Xero, Sage — ≤ 2 MB): financial statements, 30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
+        "entity/BU forecast with GL-observed DSO/DPO. — Analyse et prévision d'un export comptable via le moteur " +
+        "K-Φ : états financiers, 30 KPI, covenants, forecast par périmètre. CONTRAT DE SORTIE (report_version 1.1) : " +
         "1) un texte Markdown de synthèse ; 2) un bloc resource_link vers le rapport interactif ; " +
-        "3) structuredContent avec analysis_url (dashboard K-Φ : tuiles, graphique, covenants — lien personnel 24 h), " +
-        "kpis[] (id/valeur/formule/seuil/statut), alerts, notes, detected.column_map. " +
+        "3) structuredContent avec analysis_url (dashboard K-Φ : tuiles, graphique, covenants, bouton Projeter — " +
+        "lien personnel 24 h), kpis[] (id/valeur/formule/seuil/statut), forecast (séries par entité/BU, méthodes " +
+        "DSO/DPO observées du GL, fcBlocked verbatim), alerts, notes, detected.column_map. " +
         "L'analysis_url est l'artefact principal pour l'utilisateur : présentez-le avec votre restitution. " +
         "Erreurs typées : parse_error (format illisible), needs_input (paramètre manquant, corrigeable via " +
         "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : somme simple, sans " +

@@ -86,15 +86,20 @@ export class KphiHttpEngine implements AnalysisEngine {
        classifyAcct — les KPI lus juste après en profitent. Best-effort :
        un moteur sans le endpoint (404) ou un échec réseau n'invalide pas
        l'analyse, header_text par écriture couvre déjà l'affichage. */
+    let fcRulesSeeded = 0;
     const coa = parsed.coa_dict ?? {};
     if (Object.keys(coa).length > 0) {
       try {
         const r = await this.fetch("/api/internal/sandbox/coa", {
           method: "POST",
           headers: { "X-Sandbox-Secret": this.cfg.serviceSecret, "Content-Type": "application/json" },
-          body: JSON.stringify({ tenantId: sb.tenantId, coa }),
+          /* gen_fc_rules : le moteur synthétise ses règles de flux de la
+             classification (#162) — sans elles, tout sandbox bloque en
+             no_rules. fc_rules>0 → note de provenance sur le résultat. */
+          body: JSON.stringify({ tenantId: sb.tenantId, coa, gen_fc_rules: true }),
         });
         if (!r.ok) console.warn(`coa seed: ${r.status} (non bloquant)`);
+        else { try { fcRulesSeeded = ((await r.json()) as { fc_rules?: number }).fc_rules ?? 0; } catch { /* réponse sans corps : tolérée */ } }
       } catch (e) {
         console.warn("coa seed failed (non bloquant):", e instanceof Error ? e.message : e);
       }
@@ -136,6 +141,8 @@ export class KphiHttpEngine implements AnalysisEngine {
     const result = toAnalysisResult(parsed, position, monthly, input, periods);
     result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
     result.report_version = "1.1";
+    if (fcRulesSeeded > 0)
+      result.notes.push(`Règles de flux générées automatiquement de la classification du GL (${fcRulesSeeded} règles : créances→DSO, fournisseurs→DPO, intérêts, taxes, paie) — les DSO/DPO appliqués sont dérivés des écritures du périmètre ; ajustables dans K-Φ.`);
     // Lien signé 24 h, lecture seule, ouvre le tenant dans l'app sans login.
     const open_url = await this.openLink(sb.tenantId).catch(e => { console.error("open-link failed", e); return undefined; });
     result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last, open_url };

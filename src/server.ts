@@ -91,10 +91,21 @@ if (engine instanceof KphiHttpEngine && uploadSetup.storage) {
 }
 /* Store persistant dès qu'un disque est configuré (même variable que les
    uploads) : sans lui, un redeploy perd les analyses en cours — vécu. */
+/* ATTENTION (leçon de prod, 2026-08-27) : sur Render le système de fichiers
+   est ÉPHÉMÈRE — recréé à chaque déploiement. Écrire dans /tmp ne protège
+   que des redémarrages d'une même instance, PAS des deploys : un lien émis
+   avant un deploy meurt (« lien expiré » sur une analyse d'il y a 2 min).
+   La persistance réelle exige un DISQUE Render monté (ex. /var/data), passé
+   par KPHI_STORE_DIR. On le dit franchement au boot plutôt que de laisser
+   croire à une durabilité qu'on n'a pas. */
 const STORE_DIR = uploadSetup.kind === "tmp" ? (process.env.KPHI_STORE_DIR ?? "/tmp/kphi-store") : undefined;
+const STORE_DURABLE = !!STORE_DIR && !STORE_DIR.startsWith("/tmp");
 const store: Store = STORE_DIR ? new FsStore(STORE_DIR) : new MemoryStore();
-if (STORE_DIR) console.log(`store: persistant — ${STORE_DIR} (TTL 24 h, survit aux redeploys)`);
-else console.log("store: mémoire — les analyses sont perdues à chaque redeploy");
+console.log(
+  !STORE_DIR ? "store: mémoire — analyses perdues à chaque redeploy"
+  : STORE_DURABLE ? `store: DURABLE — ${STORE_DIR} (disque monté, TTL 24 h, survit aux deploys)`
+  : `store: ${STORE_DIR} — ⚠ /tmp est ÉPHÉMÈRE sur Render : les analyses ne survivent PAS à un déploiement. ` +
+    `Montez un disque et posez KPHI_STORE_DIR=/var/data/kphi-store pour des liens réellement valides 24 h.`);
 const limiter = new RateLimiter({
   analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
   analysesPerSessionPerDay: Number(process.env.RL_PER_SESSION_PER_DAY ?? 5),
@@ -250,7 +261,9 @@ app.get("/a/:id", async (req, res) => {
   res.status(rec ? 202 : 404).type("html").send(
     `<html lang="fr"><body style="background:#111013;color:#e8e6e1;font-family:sans-serif;padding:40px">` +
     (rec ? "Analyse en cours — rechargez dans quelques secondes."
-         : "Lien expiré ou analyse introuvable (validité 24 h). Relancez une analyse depuis votre assistant.") +
+         : "Link expired or analysis not found (24 h validity). Ask your assistant to run the analysis again — " +
+           "no need to re-upload if your file is still in the conversation. " +
+           "· Lien expiré : demandez à votre assistant de relancer l'analyse.") +
     `</body></html>`);
 });
 

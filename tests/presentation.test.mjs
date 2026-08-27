@@ -432,3 +432,13 @@ test("deux graphiques distincts : mensuel GROUPE en haut, structure SCOPÉE sous
   assert.match(html, /function draw2\(\)/, "le bloc scopé a son propre rendu");
   assert.match(html, /Result structure — follows the scope/, "titre explicite du bloc scopé");
 });
+
+test("non-régression : le graphique du haut est mensuel PUR, le bloc scopé se dessine après load", () => {
+  const html = renderReport("an_reg", { ...R,
+    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 1e8 }, { id: "ebitda", label: "E", unit: "EUR", value: 2e7 }],
+    series: [{ period: "2026-01", revenue: 2e7, ebitda: 3e6 }, { period: "2026-02", revenue: 2e7, ebitda: 3e6 }] });
+  const top = html.slice(0, html.indexOf("scopebar") > 0 ? html.indexOf("scopebar") : html.length);
+  assert.ok(!/CA exercice/.test(top), "aucun waterfall dans le bloc du haut");
+  assert.ok(!/CM==='M'/.test(html), "draw() ne branche plus sur le mode");
+  assert.match(html, /addEventListener\('load'/, "le bloc scopé attend la géométrie de sa boîte");
+});

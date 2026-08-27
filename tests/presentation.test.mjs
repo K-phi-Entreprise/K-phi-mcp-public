@@ -398,3 +398,17 @@ test("Sankey du compte de résultat + décomposition par ligne de flux (défaut)
   assert.match(html, /let FCON=false,CHD=null,DDIM='l'/, "les lignes de flux sont le défaut, l'entité une option");
   assert.match(html, /Customer collections[\s\S]*Supplier payments[\s\S]*Payroll/, "postes de flux nommés");
 });
+
+test("Sankey : géométrie bornée (viewBox + hauteur fixe), libellés au-dessus des nœuds", () => {
+  const html = renderReport("an_skg", { ...R,
+    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 145e6 },
+           { id: "gross_profit", label: "MB", unit: "EUR", value: 78e6 },
+           { id: "ebitda", label: "EBITDA", unit: "EUR", value: 23e6 },
+           { id: "net_income", label: "RN", unit: "EUR", value: 9e6 }],
+    series: [{ period: "2026-01", revenue: 2e7, ebitda: 3e6 }, { period: "2026-02", revenue: 2e7, ebitda: 3e6 }] });
+  assert.match(html, /var W=1000,H=330/, "dimensions fixes");
+  assert.match(html, /preserveAspectRatio="xMidYMid meet"/, "le SVG s'inscrit dans sa boîte");
+  assert.match(html, /id="sk"[^>]*overflow:hidden/, "conteneur borné — plus de débordement sur les covenants");
+  assert.match(html, /y="'\+\(y-12\)\+'"/, "libellé posé AU-DESSUS du nœud");
+  assert.match(html, /usable=H-TOP-BOT/, "hauteur utile calculée, pas d'échelle libre");
+});

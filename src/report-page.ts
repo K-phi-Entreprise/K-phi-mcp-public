@@ -184,7 +184,7 @@ ${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:cent
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}
 <span>${series.length > 1 ? `<button class="mbtn" id="bM" onclick="cmode('M')">${T.monthly}</button> <button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> <button class="mbtn" id="bS" onclick="cmode('S')">${T.sankey}</button> ` : ""}<button class="mbtn" id="bF" style="border-color:#898781" onclick="fcpanel()">${T.project}</button></span></h2>
-${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas><div id="sk" style="display:none"></div></div>` : ""}
+${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas><div id="sk" style="display:none;overflow:hidden"></div></div>` : ""}
 <div id="fcp" style="display:none;margin-top:8px">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <span class="mut" style="margin-left:auto">${T.horizon} ${(r.forecast?.horizon_months ?? 6)} ${T.months}</span>
@@ -256,37 +256,42 @@ function kpiOf(id){
 function drawSankey(){
   var box=document.getElementById('sk');if(!box)return;
   var rev=kpiOf('revenue'),gp=kpiOf('gross_profit'),eb=kpiOf('ebitda'),ni=kpiOf('net_income');
-  if(rev===null||rev===0){box.innerHTML='<div class="mut" style="padding:20px">'+FT.sankeyNA+'</div>';return;}
-  var W=980,H=300,PAD=14,x0=8,colW=150,gap=(W-2*x0-3*colW)/3;
-  var cogs=(gp!==null)?rev-gp:null, opex=(gp!==null&&eb!==null)?gp-eb:null, below=(eb!==null&&ni!==null)?eb-ni:null;
-  var sc=(H-3*PAD)/Math.max(rev,1);
-  var h=function(v){return Math.max(2,Math.abs(v||0)*sc);};
-  var G='#1baf7a',Rd='#d03b3b',B='#2a78d6',O='#eb6834';
-  function band(x,y,w,hh,c,op){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+hh+'" fill="'+c+'" opacity="'+(op||1)+'" rx="3"/>';}
-  function flow(x1,y1,x2,y2,hh,c){var mx=(x1+x2)/2;
-    return '<path d="M'+x1+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+x2+','+y2+' L'+x2+','+(y2+hh)+' C'+mx+','+(y2+hh)+' '+mx+','+(y1+hh)+' '+x1+','+(y1+hh)+' Z" fill="'+c+'" opacity="0.28"/>';}
-  function lab(x,y,t,v,c){return '<text x="'+x+'" y="'+y+'" fill="'+(c||'#b7b5af')+'" font-size="12">'+t+'</text>'+
-    '<text x="'+x+'" y="'+(y+15)+'" fill="#e8e6e1" font-size="13" font-weight="600">'+fmtN(v)+'</text>';}
-  var s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px">';
-  var y=PAD;
-  s+=band(x0,y,16,h(rev),B)+lab(x0+22,y+14,FT.skRev,rev,B);
-  var x1=x0+colW+gap;
-  if(cogs!==null){
-    s+=flow(x0+16,y,x1,y,h(cogs),Rd)+band(x1,y,16,h(cogs),Rd)+lab(x1+22,y+14,FT.skCogs,-cogs,Rd);
-    var yg=y+h(cogs)+6;
-    s+=flow(x0+16,yg,x1,yg,h(gp),G)+band(x1,yg,16,h(gp),G)+lab(x1+22,yg+14,FT.skGp,gp,G);
-    var x2=x1+colW+gap;
-    if(opex!==null){
-      s+=flow(x1+16,yg,x2,yg,h(opex),O)+band(x2,yg,16,h(opex),O)+lab(x2+22,yg+14,FT.skOpex,-opex,O);
-      var ye=yg+h(opex)+6;
-      s+=flow(x1+16,ye,x2,ye,h(eb),eb>=0?G:Rd)+band(x2,ye,16,h(eb),eb>=0?G:Rd)+lab(x2+22,ye+14,FT.skEbitda,eb,eb>=0?G:Rd);
-      var x3=x2+colW+gap;
-      if(below!==null){
-        s+=flow(x2+16,ye,x3,ye,h(below),Rd)+band(x3,ye,16,h(below),Rd)+lab(x3+22,ye+14,FT.skBelow,-below,Rd);
-        var yn=ye+h(below)+6;
-        s+=flow(x2+16,yn,x3,yn,h(ni),ni>=0?G:Rd)+band(x3,yn,16,h(ni),ni>=0?G:Rd)+lab(x3+22,yn+14,FT.skNi,ni,ni>=0?G:Rd);
-      }
-    }
+  if(rev===null||!isFinite(rev)||rev===0){box.innerHTML='<div class="mut" style="padding:24px">'+FT.sankeyNA+'</div>';return;}
+  /* Géométrie contrainte : le SVG tient DANS sa boîte (viewBox + hauteur fixe),
+     les libellés vivent AU-DESSUS de chaque nœud, jamais par-dessus les flux —
+     le premier jet débordait sur les covenants (capture fondateur). */
+  var W=1000,H=330,TOP=26,BOT=22,x0=10,nodeW=13,cols=4,
+      colGap=(W-2*x0-nodeW)/(cols-1),usable=H-TOP-BOT;
+  var mx=Math.max(Math.abs(rev),1),sc=usable/mx;
+  var h=function(v){return Math.max(3,Math.abs(v||0)*sc);};
+  var G='#1baf7a',Rd='#d03b3b',B='#2a78d6',O='#eb6834',cogs=(gp!==null)?rev-gp:null,
+      opex=(gp!==null&&eb!==null)?gp-eb:null,below=(eb!==null&&ni!==null)?eb-ni:null;
+  function node(col,y,hh,c){var x=x0+col*colGap;
+    return '<rect x="'+x+'" y="'+y+'" width="'+nodeW+'" height="'+hh+'" fill="'+c+'" rx="3"/>';}
+  function link(c1,y1,c2,y2,hh,c){
+    var xa=x0+c1*colGap+nodeW,xb=x0+c2*colGap,m=(xa+xb)/2;
+    return '<path d="M'+xa+','+y1+' C'+m+','+y1+' '+m+','+y2+' '+xb+','+y2+
+           ' L'+xb+','+(y2+hh)+' C'+m+','+(y2+hh)+' '+m+','+(y1+hh)+' '+xa+','+(y1+hh)+' Z" fill="'+c+'" opacity=".22"/>';}
+  /* libellé au-dessus du nœud, aligné à gauche ; jamais superposé */
+  function tag(col,y,t,v,c){var x=x0+col*colGap;
+    return '<text x="'+x+'" y="'+(y-12)+'" fill="'+c+'" font-size="11.5">'+t+'</text>'+
+           '<text x="'+x+'" y="'+(y-1)+'" fill="#e8e6e1" font-size="13" font-weight="600">'+fmtN(v)+'</text>';}
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="width:100%;height:'+H+'px;display:block">';
+  var yRev=TOP;
+  s+=node(0,yRev,h(rev),B)+tag(0,yRev,FT.skRev,rev,B);
+  if(cogs!==null&&opex!==null&&below!==null){
+    /* colonne 1 : coût des ventes en haut, marge brute dessous */
+    var yC=TOP, yG=TOP+h(cogs)+16;
+    s+=link(0,yRev,1,yC,h(cogs),Rd)+node(1,yC,h(cogs),Rd)+tag(1,yC,FT.skCogs,-cogs,Rd);
+    s+=link(0,yRev+h(cogs)+0.5,1,yG,h(gp),G)+node(1,yG,h(gp),G)+tag(1,yG,FT.skGp,gp,G);
+    /* colonne 2 : charges d'exploitation puis EBITDA */
+    var yO=yG, yE=yG+h(opex)+16;
+    s+=link(1,yG,2,yO,h(opex),O)+node(2,yO,h(opex),O)+tag(2,yO,FT.skOpex,-opex,O);
+    s+=link(1,yG+h(opex)+0.5,2,yE,h(eb),eb>=0?G:Rd)+node(2,yE,h(eb),eb>=0?G:Rd)+tag(2,yE,FT.skEbitda,eb,eb>=0?G:Rd);
+    /* colonne 3 : D&A/intérêts/impôt puis résultat net */
+    var yB=yE, yN=yE+h(below)+16;
+    s+=link(2,yE,3,yB,h(below),Rd)+node(3,yB,h(below),Rd)+tag(3,yB,FT.skBelow,-below,Rd);
+    s+=link(2,yE+h(below)+0.5,3,yN,h(ni),ni>=0?G:Rd)+node(3,yN,h(ni),ni>=0?G:Rd)+tag(3,yN,FT.skNi,ni,ni>=0?G:Rd);
   }
   s+='</svg>';box.innerHTML=s;
 }

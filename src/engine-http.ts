@@ -393,29 +393,26 @@ function slimFc(rows: Array<Record<string, unknown>>): Array<Record<string, unkn
 type WcMap = Record<string, { dso?: number; dpo?: number; _denomSource?: string; [k: string]: unknown }>;
 type ScopeFc = { fc: Array<Record<string, unknown>>; blocked: unknown;
                  kpi?: Record<string, unknown>; ratios?: Record<string, unknown> | null };
-/** KPI d'un périmètre, réduits aux ids que le dashboard sait rendre. */
-const SCOPE_KPI_IDS: Array<[string, string[]]> = [
-  ["revenue", ["Net Revenue", "Revenue"]], ["gross_profit", ["Gross Profit"]],
-  ["ebitda", ["EBITDA"]], ["operating_income", ["Operating Income", "EBIT"]],
-  ["net_income", ["Net Income"]], ["cash", ["Cash"]],
-];
+/* KPI d'un périmètre : MÊME table de correspondance que le groupe
+   (KPI_SPEC) — une table parallèle écrite à la main avait des clés fausses
+   (« Revenue » au lieu de « Net Revenue »…), donc aucun KPI ne se rescopait
+   et les tuiles ne bougeaient pas. Source unique, un seul endroit à
+   maintenir. Les marges sont dérivées si le moteur ne les fournit pas. */
 function scopeKpis(s: ScopeFc): Record<string, number> | undefined {
   const src = { ...(s.ratios ?? {}), ...(s.kpi ?? {}) } as Record<string, unknown>;
   const out: Record<string, number> = {};
-  for (const [id, keys] of SCOPE_KPI_IDS) {
-    for (const k of keys) {
+  for (const spec of KPI_SPEC) {
+    if (spec.na && src[spec.na]) continue;           // moteur : non calculable ici
+    for (const k of spec.keys) {
       const v = src[k];
-      if (typeof v === "number" && isFinite(v)) { out[id] = v; break; }
+      if (typeof v === "number" && isFinite(v)) { out[spec.id] = v; break; }
     }
   }
-  if (typeof out.revenue === "number" && out.revenue !== 0) {
-    if (typeof out.ebitda === "number") out.ebitda_margin = (out.ebitda / out.revenue) * 100;
-    if (typeof out.net_income === "number") out.net_margin = (out.net_income / out.revenue) * 100;
+  const rev = out.revenue;
+  if (typeof rev === "number" && rev !== 0) {
+    if (out.ebitda_margin === undefined && typeof out.ebitda === "number") out.ebitda_margin = (out.ebitda / rev) * 100;
+    if (out.net_margin === undefined && typeof out.net_income === "number") out.net_margin = (out.net_income / rev) * 100;
   }
-  const dso = (s.ratios as Record<string, unknown> | undefined)?.["dso"];
-  if (typeof dso === "number" && isFinite(dso)) out.dso = dso;
-  const dpo = (s.ratios as Record<string, unknown> | undefined)?.["dpo"];
-  if (typeof dpo === "number" && isFinite(dpo)) out.dpo = dpo;
   return Object.keys(out).length ? out : undefined;
 }
 

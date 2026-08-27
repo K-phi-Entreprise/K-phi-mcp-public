@@ -83,7 +83,7 @@ const I18N = {
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
-        axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        scopeNote: "Scope applies to the projection, working-capital methods and breakdown below. Actual tiles and KPIs remain group-level in this preview.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -102,7 +102,7 @@ const I18N = {
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
-        axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        scopeNote: "Le périmètre s'applique à la projection, aux méthodes BFR et à la décomposition ci-dessous. Les tuiles et KPI réels restent au niveau groupe dans cet aperçu.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -147,7 +147,7 @@ body{margin:0;background:#111013;color:#e8e6e1;font:14px/1.5 -apple-system,Segoe
 .tile .l{font-size:12px;color:#898781}.tile .v{font-size:23px;font-weight:600}
 .covrow{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .cov{border:1px solid #2c2b30;border-radius:10px;padding:7px 11px;font-size:13px}
-table{font-size:15px;width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+table{font-size:16.5px;width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
@@ -174,14 +174,17 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 <span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>
 <button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
+${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#18171b;border:1px solid #2c2b30;border-radius:12px;padding:12px 16px;margin:14px 0">
+  <span style="font-weight:600">${T.scope}</span>
+  <select id="fcs" onchange="scopeChanged()" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:8px 12px;font-size:15px"></select>
+  <span class="mut" id="scopenote" style="font-size:12.5px"></span>
+</div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}
 <span>${series.length > 1 ? `<button class="mbtn" id="bM" onclick="cmode('M')">${T.monthly}</button> <button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> ` : ""}<button class="mbtn" id="bF" style="border-color:#898781" onclick="fcpanel()">${T.project}</button></span></h2>
 ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 <div id="fcp" style="display:none;margin-top:8px">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-    <span class="mut">${T.scope}</span>
-    <select id="fcs" onchange="fcdraw()" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:6px 10px"></select>
     <span class="mut" style="margin-left:auto">${T.horizon} ${(r.forecast?.horizon_months ?? 6)} ${T.months}</span>
   </div>
   <div id="fcblocked" class="cav" style="display:none"></div>
@@ -240,9 +243,18 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash }).replace(/</g, "\\u003c")};</script>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,DDIM='e';
+/* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
+   périmètre (projection, méthodes DSO/DPO, décomposition). Les agrégats réels
+   restent groupe tant que le moteur n'expose pas ses séries par périmètre —
+   dit dans la barre plutôt que laissé deviner. */
+function scopeChanged(){
+  var v=document.getElementById('fcs').value||'g:';
+  document.getElementById('scopenote').textContent=(v==='g:')?'':FT.scopeNote;
+  if(!FCON)fcpanel(); else fcdraw();
+}
 function ddim(d){DDIM=d;fcdraw();}
 const EN=window.__EN||{};
 /* Un code de société ne dit rien à un lecteur : on affiche le nom quand
@@ -258,7 +270,7 @@ function fcpanel(){
     document.getElementById('fcblocked').style.display='block';
     document.getElementById('fcblocked').textContent='⚠ '+FT.old11;
     return;}
-  if(FCON&&!document.getElementById('fcs').options.length){
+  if(!document.getElementById('fcs').options.length){
     const sel=document.getElementById('fcs');
     sel.add(new Option(FT.global,'g:'));
     for(const e of Object.keys(window.__FC.by_entity||{}))sel.add(new Option(FT.entity+' '+nm(e),'e:'+e));
@@ -371,6 +383,10 @@ function fcdraw(){
     CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:perSet,datasets:dsEnt},
       options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{...FOPT.scales,x:{...FOPT.scales.x,stacked:true},y:{...FOPT.scales.y,stacked:true}}}});}
 }
+
+/* Périmètres peuplés dès le chargement : la barre est utilisable sans
+   ouvrir le panneau (le périmètre pilote la page). */
+try{if(window.__FC){var _s=document.getElementById('fcs');if(_s&&!_s.options.length){_s.add(new Option(FT.global,'g:'));for(const e of Object.keys(window.__FC.by_entity||{}))_s.add(new Option(FT.entity+' '+nm(e),'e:'+e));for(const b of Object.keys(window.__FC.by_bu||{}))_s.add(new Option(FT.bu+' '+b,'b:'+b));}}}catch(e){}
 </script>
 </div></body></html>`;
 }

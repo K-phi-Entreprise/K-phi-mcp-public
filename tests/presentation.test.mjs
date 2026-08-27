@@ -309,3 +309,16 @@ test("axes : la liste des axes détectés est affichée ; une projection d'axe v
   assert.match(html, /sliced by/, "l'axe utilisé est nommé");
   assert.match(html, /carries no balance-sheet accounts/, "l'explication de la projection vide est embarquée");
 });
+
+test("périmètre : barre en TÊTE de page, peuplée au chargement, portée annoncée", () => {
+  const fx = { horizon_months: 2, global: { series: [{ period: "2026-01", collections: 10 }], blocked: null },
+    by_entity: { "1000": { series: [{ period: "2026-01", collections: 10 }], blocked: null } }, by_bu: {},
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_sc", { ...R, forecast: fx, report_version: "1.1",
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  const iScope = html.indexOf('id="scopebar"'), iTiles = html.indexOf('class="tiles"'), iChart = html.indexOf("Revenue & EBITDA");
+  assert.ok(iScope > 0 && iScope < iTiles && iScope < iChart, "la barre de périmètre précède tuiles et graphique");
+  assert.equal(html.split('id="fcs"').length - 1, 1, "un seul sélecteur de périmètre sur la page");
+  assert.match(html, /Scope applies to the projection/, "la portée du périmètre est annoncée");
+  assert.match(html, /table\{font-size:16\.5px/, "police des tables augmentée");
+});

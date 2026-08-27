@@ -89,7 +89,7 @@ const I18N = {
         cta_tail: "Balance sheet · P&L · Cash flow · entity & BU drill-down · 30 days free once you confirm your email.",
         old11: "Projection not available on this analysis (pre-1.1 contract) — re-run the analysis to get it.",
         blocked: "Projection blocked by the engine for this scope: ", threshold: "threshold", covenant: "covenant",
-        drill: "Breakdown by entity — actual (period) and projected (horizon)",
+        drill: "Breakdown by entity", drillP: "Projection by entity, month by month (stacked)",
         realBar: "Actual revenue", projBar: "Projected revenue", ebitdaLine: "Actual EBITDA",
         projCash: "Projected collections (cash)", noD: "scopes excluded (implied DSO out of range)",
         noBudget: "No budget loaded: the K-Φ engine does not extrapolate future revenue — a sales forecast is a client decision, never invented. The projection unwinds your existing receivables and payables into cash; that is what the gray bars show. Load a budget in K-Φ to project revenue too.",
@@ -106,7 +106,7 @@ const I18N = {
         cta_tail: "Bilan · P&L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.",
         old11: "Projection non disponible sur cette analyse (antérieure au contrat 1.1) — relancez l'analyse pour l'obtenir.",
         blocked: "Projection bloquée par le moteur pour ce périmètre : ", threshold: "seuil", covenant: "covenant",
-        drill: "Décomposition par entité — réel (exercice) et projeté (horizon)",
+        drill: "Décomposition par entité", drillP: "Projection par entité, mois par mois (empilée)",
         realBar: "CA réel", projBar: "CA projeté", ebitdaLine: "EBITDA réel",
         projCash: "Encaissements projetés", noD: "périmètres écartés (DSO implicite hors plage)",
         noBudget: "Aucun budget chargé : le moteur K-Φ n'extrapole pas le CA futur — une prévision de ventes est une décision client, jamais inventée. La projection déroule vos créances et dettes existantes en trésorerie : c'est ce que montrent les barres grises. Chargez un budget dans K-Φ pour projeter aussi le CA.",
@@ -138,12 +138,12 @@ body{margin:0;background:#111013;color:#e8e6e1;font:14px/1.5 -apple-system,Segoe
 .hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
 .hd h1{font-size:19px;font-weight:600;margin:0}.mut{color:#898781;font-size:13px}
 .cav{background:#2e2410;color:#fab219;border-radius:10px;padding:10px 14px;margin:14px 0;font-size:13px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.tiles{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
 .tile{background:#1b1a1e;border-radius:10px;padding:12px 14px}
 .tile .l{font-size:12px;color:#898781}.tile .v{font-size:23px;font-weight:600}
 .covrow{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .cov{border:1px solid #2c2b30;border-radius:10px;padding:7px 11px;font-size:13px}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+table{font-size:15px;width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
@@ -169,7 +169,7 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
   <div id="fcblocked" class="cav" style="display:none"></div>
   <div id="fcdoc" style="display:none;background:#1b1a1e;border:1px solid #2c2b30;color:#b7b5af;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px"></div>
   <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
-  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drill}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div></div>
+  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drillP}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div></div>
 </div>
 ${covs.length ? `<h2>${T.covs}</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(lbl(k))} ${fmtV(k, CCY)} <span class="mut">${T.threshold} ${k.threshold}</span></span>`).join("")}</div>` : ""}
@@ -286,14 +286,19 @@ function fcdraw(){
   const dr=document.getElementById('fcdrill');
   if(dr.style.display!=='none'){
     const ents=Object.keys(window.__FC.by_entity||{});
-    const projByEnt=ents.map(e=>(window.__FC.by_entity[e].series||[]).reduce((a,x)=>a+(x.sales||x.collections||0),0));
-    const dsoE=(window.__FC.methods||{}).dso_by_entity||{};
-    const realByEnt=ents.map(e=>dsoE[e]&&dsoE[e].basis!==undefined?dsoE[e].basis:null);
-    if(CHD)CHD.destroy();
-    CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:ents,datasets:[
-      {label:FT.realBar,data:realByEnt,backgroundColor:'#2a78d6',borderRadius:3},
-      {label:FT.projBar,data:projByEnt,backgroundColor:'rgba(137,135,129,0.5)',borderRadius:3},
-    ]},options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}}}});}
+    /* X = PÉRIODES (demande fondateur) : une série par entité, valeurs =
+       CA projeté si budget, sinon encaissements projetés — même règle que
+       le graphique principal. */
+    const perSet=[];for(const e of ents)for(const x of (window.__FC.by_entity[e].series||[]))if(perSet.indexOf(x.period)<0)perSet.push(x.period);
+    perSet.sort();
+    const PAL=['#2a78d6','#eb6834','#1baf7a','#eda100','#9b6cd6','#d03b3b','#28a3a3','#b7b5af'];
+    const dsEnt=ents.map(function(e,i){
+      const byP={};for(const x of (window.__FC.by_entity[e].series||[]))byP[x.period]=(x.sales||x.collections||0);
+      return {label:e,data:perSet.map(p=>byP[p]??null),backgroundColor:PAL[i%PAL.length],borderRadius:3,maxBarThickness:22};
+    });
+        if(CHD)CHD.destroy();
+    CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:perSet,datasets:dsEnt},
+      options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{...FOPT.scales,x:{...FOPT.scales.x,stacked:true},y:{...FOPT.scales.y,stacked:true}}}});}
 }
 </script>
 </div></body></html>`;

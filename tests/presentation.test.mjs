@@ -363,3 +363,18 @@ test("attente d'analyse : barre indéterminée + spinner + étapes réelles, ani
   assert.match(html, /prefers-reduced-motion/, "animations désactivables (accessibilité)");
   assert.doesNotMatch(html, /width:\s*\d+%.*progress/i, "aucune fausse progression en pourcentage");
 });
+
+test("axe sans trésorerie : bouton retiré ; extinction des encaissements expliquée", () => {
+  const fx = { horizon_months: 6,
+    global: { series: [{ period: "2026-07", collections: 26e6 }, { period: "2026-08", collections: 17e6 },
+                       { period: "2026-09", collections: 0 }], blocked: null },
+    by_entity: { CADENTITY: { series: [{ period: "2026-07", collections: 6.75e6 }, { period: "2026-08", collections: 4.57e6 }, { period: "2026-09", collections: 0 }], blocked: null } },
+    by_bu: { PRCTR1: { series: [{ period: "2026-07", collections: 0 }], blocked: null } },
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_ro", { ...R, forecast: fx, report_version: "1.1",
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /_axCash\?''\:'none'/, "le bouton par-axe disparaît quand l'axe ne porte aucun flux");
+  assert.match(html, /id="fcrunout"/, "emplacement de l'explication d'extinction");
+  assert.match(html, /Collections stop after month \{n\}/, "message d'extinction embarqué");
+  assert.match(html, /receivables present in your ledger have all been collected/, "raison comptable donnée");
+});

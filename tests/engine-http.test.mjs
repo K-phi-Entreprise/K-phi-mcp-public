@@ -23,6 +23,10 @@ function mockEngine({ failImports = 0 } = {}) {
     const u = String(url);
     const ok = (body, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (u.includes("/api/internal/sandbox/coa")) {
+      calls.coaBody = JSON.parse(init.body);
+      return ok({ seeded: 3, fc_rules: 4 });
+    }
     if (u.includes("/api/internal/sandbox/tenant")) {
       calls.tenant++;
       return ok({ tenantId: "a".repeat(32), name: "MCP-TST-20260825", token: "jwt" });
@@ -307,4 +311,12 @@ test("forecast : appels fc par scope (global + entité + BU), lignes moteur rela
   assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 37, source: "gl_observed", basis: 100 },
     "basis = CA du périmètre calculé moteur, relayé pour le drill");
   assert.equal(r.forecast.methods.dso_by_bu.B1.source, "fallback");
+});
+
+test("gen_fc_rules demandé au seed ; fc_rules>0 → note de provenance des règles auto", async () => {
+  const calls = mockEngine();
+  const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  assert.equal(calls.coaBody?.gen_fc_rules, true, "le seed demande la synthèse des règles");
+  assert.ok(r.notes.some(n => /Règles de flux générées automatiquement/.test(n) && /4 règles/.test(n)),
+    "note de provenance présente avec le compte");
 });

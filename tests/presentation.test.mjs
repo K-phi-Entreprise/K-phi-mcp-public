@@ -149,3 +149,14 @@ test("durcissement : Chart.js émis UNE fois, inconditionnel — balance mono-mo
   assert.equal(html.split("chart.umd.js").length - 1, 1, "CDN une seule fois");
   assert.match(html, /const FOPT=/, "options de repli présentes sans le graphique principal");
 });
+
+/* ── Découvrabilité (retour relais 2026-08-27 : descriptions différées) ── */
+import { readFileSync } from "node:fs";
+test("la PREMIÈRE ligne de kphi_analyze_ledger est bilingue et porte les déclencheurs factuels", () => {
+  const src = readFileSync(new URL("../src/tools.ts", import.meta.url), "utf8");
+  const firstLine = src.match(/"Financial analysis & forecast[^"]+"/)?.[0] ?? "";
+  for (const kw of ["KPI", "covenant", "DSCR", "forecast", "SAP", "trial-balance", "DSO"])
+    assert.ok(new RegExp(kw, "i").test(firstLine + src.slice(src.indexOf(firstLine), src.indexOf(firstLine) + 700)),
+      `déclencheur visible manquant : ${kw}`);
+  assert.match(src, /Analyse et prévision d'un export comptable/, "la ligne reste bilingue — jamais un fix mono-langue");
+});

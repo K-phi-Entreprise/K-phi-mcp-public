@@ -83,7 +83,7 @@ const I18N = {
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
-        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, Sankey, projection and breakdown below follow this scope.", groupLevel: "whole group — not affected by the filters below", scoped: "Result structure — follows the scope", runout: "Collections stop after month {n}: the receivables present in your ledger have all been collected by then, and without a budget the engine creates no new sales — so there is nothing left to collect. Load a budget in K-Φ to continue the projection beyond that point.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", pies: "Pies", negEbitda: "negative EBITDA", sankeyNA: "Income-statement flows need revenue and margins — not available on this scope.", skRev: "Revenue", skCogs: "Cost of sales", skGp: "Gross profit", skOpex: "Operating expenses", skEbitda: "EBITDA", skBelow: "D&A, interest, tax", skNi: "Net income", byLine: "By flow line", flCollect: "Customer collections", flPay: "Supplier payments", flPayroll: "Payroll", flOpex: "Operating expenses", flTax: "Taxes", flInt: "Interest", project: "Project forecast →",
+        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, Sankey, projection and breakdown below follow this scope.", groupLevel: "whole group — not affected by the filters below", scoped: "Result structure — follows the scope", runout: "Collections stop after month {n}: the receivables present in your ledger have all been collected by then, and without a budget the engine creates no new sales — so there is nothing left to collect. Load a budget in K-Φ to continue the projection beyond that point.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", pies: "Pies", negEbitda: "negative EBITDA", piesNA: "Contribution pies need at least two entities in the export.", piesNoPos: "No positive contribution on this line.", negContrib: "Negative contribution:", sankeyNA: "Income-statement flows need revenue and margins — not available on this scope.", skRev: "Revenue", skCogs: "Cost of sales", skGp: "Gross profit", skOpex: "Operating expenses", skEbitda: "EBITDA", skBelow: "D&A, interest, tax", skNi: "Net income", byLine: "By flow line", flCollect: "Customer collections", flPay: "Supplier payments", flPayroll: "Payroll", flOpex: "Operating expenses", flTax: "Taxes", flInt: "Interest", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "Analytic axis", allEnt: "All entities", allAx: "All values",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -102,7 +102,7 @@ const I18N = {
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
-        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, Sankey, projection et décomposition ci-dessous suivent ce périmètre.", groupLevel: "groupe entier — non affecté par les filtres ci-dessous", scoped: "Structure du résultat — suit le périmètre", runout: "Les encaissements s'arrêtent après le mois {n} : les créances présentes dans votre grand livre ont alors toutes été encaissées, et sans budget le moteur ne crée aucune vente nouvelle — il n'y a donc plus rien à encaisser. Chargez un budget dans K-Φ pour prolonger la projection.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", pies: "Camemberts", negEbitda: "EBITDA négatif", sankeyNA: "Les flux du compte de résultat exigent le CA et les marges — indisponibles sur ce périmètre.", skRev: "Chiffre d'affaires", skCogs: "Coût des ventes", skGp: "Marge brute", skOpex: "Charges d'exploitation", skEbitda: "EBITDA", skBelow: "D&A, intérêts, impôt", skNi: "Résultat net", byLine: "Par ligne de flux", flCollect: "Encaissements clients", flPay: "Règlements fournisseurs", flPayroll: "Paie", flOpex: "Charges d'exploitation", flTax: "Impôts", flInt: "Intérêts", project: "Projeter →",
+        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, Sankey, projection et décomposition ci-dessous suivent ce périmètre.", groupLevel: "groupe entier — non affecté par les filtres ci-dessous", scoped: "Structure du résultat — suit le périmètre", runout: "Les encaissements s'arrêtent après le mois {n} : les créances présentes dans votre grand livre ont alors toutes été encaissées, et sans budget le moteur ne crée aucune vente nouvelle — il n'y a donc plus rien à encaisser. Chargez un budget dans K-Φ pour prolonger la projection.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", pies: "Camemberts", negEbitda: "EBITDA négatif", piesNA: "Les camemberts de contribution demandent au moins deux entités.", piesNoPos: "Aucune contribution positive sur cette ligne.", negContrib: "Contribution négative :", sankeyNA: "Les flux du compte de résultat exigent le CA et les marges — indisponibles sur ce périmètre.", skRev: "Chiffre d'affaires", skCogs: "Coût des ventes", skGp: "Marge brute", skOpex: "Charges d'exploitation", skEbitda: "EBITDA", skBelow: "D&A, intérêts, impôt", skNi: "Résultat net", byLine: "Par ligne de flux", flCollect: "Encaissements clients", flPay: "Règlements fournisseurs", flPayroll: "Paie", flOpex: "Charges d'exploitation", flTax: "Impôts", flInt: "Intérêts", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "Axe analytique", allEnt: "Toutes entités", allAx: "Toutes valeurs",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -265,35 +265,46 @@ function kpiOf(id){
    se représente pas dans un camembert — on l'affiche alors en texte sous le
    graphe des charges plutôt que de dessiner une part impossible. */
 var PIES=[];
+/* TROIS camemberts — un par poste (CA, charges, EBITDA) — montrant la
+   CONTRIBUTION DE CHAQUE ENTITÉ. Répond à « who is contributing the most ».
+   Une même société garde sa couleur d'un camembert à l'autre, pour que l'oeil
+   la suive. Une contribution négative (entité en perte) ne peut pas être une
+   part : elle est listée sous le graphe, jamais dessinée ni escamotée. */
 function drawPies(){
   var box=document.getElementById('sk');if(!box)return;
   PIES.forEach(function(c){try{c.destroy();}catch(e){}});PIES=[];
-  var items=[];
-  var gRev=window.__KPIG&&window.__KPIG.revenue,gEb=window.__KPIG&&window.__KPIG.ebitda;
-  if(typeof gRev==='number')items.push({name:FT.allEnt,rev:gRev,eb:(typeof gEb==='number')?gEb:null});
-  var ents=window.__FC?(window.__FC.by_entity||{}):{};
-  for(var e in ents){var k=ents[e].kpi;if(k&&typeof k.revenue==='number')items.push({name:nm(e),rev:k.revenue,eb:(typeof k.ebitda==='number')?k.ebitda:null});}
-  if(!items.length){box.innerHTML='<div class="mut" style="padding:24px">'+FT.sankeyNA+'</div>';return;}
-  box.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;padding:6px 2px">'+
-    items.map(function(it,i){
-      var neg=(it.eb!==null&&it.eb<0);
-      return '<div style="text-align:center">'+
-        '<div class="mut" style="font-size:12.5px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+it.name+'">'+it.name+'</div>'+
-        '<div style="position:relative;height:150px"><canvas id="pie'+i+'"></canvas></div>'+
-        '<div style="font-size:12.5px;margin-top:4px;color:'+(neg?'#d03b3b':'#b7b5af')+'">'+
-          (neg?FT.negEbitda+' '+fmtN(it.eb):FT.skEbitda+' '+fmtN(it.eb===null?0:it.eb))+'</div></div>';
-    }).join('')+'</div>';
-  items.forEach(function(it,i){
-    var el=document.getElementById('pie'+i);if(!el)return;
-    var eb=(it.eb===null)?0:it.eb, charges=it.rev-eb, neg=eb<0;
-    /* EBITDA négatif : la part n'existe pas, on montre les charges seules. */
-    var data=neg?[Math.abs(charges)]:[Math.max(charges,0),Math.max(eb,0)];
-    var labels=neg?[FT.skOpex]:[FT.skOpex,FT.skEbitda];
-    var colors=neg?['#eb6834']:['#eb6834','#1baf7a'];
-    PIES.push(new Chart(el,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:0}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'52%',
-        plugins:{legend:{display:i===0,position:'bottom',labels:{color:'#b7b5af',boxWidth:9,font:{size:11}}},
-          tooltip:{callbacks:{label:function(c){return c.label+': '+fmtN(c.parsed);}}}}}}));
+  var ents=window.__FC?(window.__FC.by_entity||{}):{},rows=[];
+  for(var e in ents){var k=ents[e].kpi;
+    if(k&&typeof k.revenue==='number')rows.push({name:nm(e),rev:k.revenue,
+      eb:(typeof k.ebitda==='number')?k.ebitda:0,
+      chg:k.revenue-((typeof k.ebitda==='number')?k.ebitda:0)});}
+  if(rows.length<2){box.innerHTML='<div class="mut" style="padding:24px">'+FT.piesNA+'</div>';return;}
+  rows.sort(function(a,b){return b.rev-a.rev;});
+  var PAL=['#2a78d6','#eb6834','#1baf7a','#eda100','#9b6cd6','#d03b3b','#28a3a3','#b7b5af','#7a86d6','#d67ab0'];
+  var CATS=[['rev',FT.skRev],['chg',FT.skOpex],['eb',FT.skEbitda]];
+  box.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;padding:4px 2px">'+
+    CATS.map(function(c,ci){return '<div style="text-align:center">'+
+      '<div style="font-size:13.5px;font-weight:600;margin-bottom:6px">'+c[1]+'</div>'+
+      '<div style="position:relative;height:170px"><canvas id="pie'+ci+'"></canvas></div>'+
+      '<div class="mut" id="pieneg'+ci+'" style="font-size:12px;margin-top:6px"></div></div>';}).join('')+
+    '</div><div id="pieleg" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px;font-size:12.5px"></div>';
+  document.getElementById('pieleg').innerHTML=rows.map(function(rw,i){
+    return '<span style="white-space:nowrap"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+PAL[i%PAL.length]+';margin-right:5px"></span>'+rw.name+'</span>';}).join('');
+  CATS.forEach(function(c,ci){
+    var el=document.getElementById('pie'+ci);if(!el)return;
+    var pos=[],lab=[],col=[],neg=[];
+    rows.forEach(function(rw,i){var v=rw[c[0]];
+      if(v>0){pos.push(v);lab.push(rw.name);col.push(PAL[i%PAL.length]);}
+      else if(v<0)neg.push(rw.name+' '+fmtN(v));});
+    var negBox=document.getElementById('pieneg'+ci);
+    if(negBox)negBox.innerHTML=neg.length?('<span style="color:#d03b3b">'+FT.negContrib+' '+neg.join(' · ')+'</span>'):'';
+    if(!pos.length){el.parentNode.innerHTML='<div class="mut" style="padding:36px 8px;font-size:12.5px">'+FT.piesNoPos+'</div>';return;}
+    var tot=pos.reduce(function(a,b){return a+b;},0);
+    PIES.push(new Chart(el,{type:'doughnut',data:{labels:lab,datasets:[{data:pos,backgroundColor:col,borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'50%',
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(x){var p=tot?(100*x.parsed/tot):0;
+            return x.label+': '+fmtN(x.parsed)+' ('+p.toFixed(1)+' %)';}}}}}}));
   });
 }
 /* HAUT : historique mensuel du GROUPE, seul — il ne peut pas être découpé
@@ -331,7 +342,7 @@ draw();
    grand vide (régression vue en prod). */
 window.addEventListener('load',function(){try{if(typeof draw2==='function')draw2();}catch(e){}});</script>` : ""}
 
-<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
+<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,CH2=null,DDIM='l';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par

@@ -412,7 +412,7 @@ test("non-régression : le graphique du haut est mensuel PUR, le bloc scopé se 
   assert.match(html, /addEventListener\('load'/, "le bloc scopé attend la géométrie de sa boîte");
 });
 
-test("camemberts par entité : trois postes, un beignet par périmètre, EBITDA négatif traité", () => {
+test("camemberts de CONTRIBUTION : un par poste (CA, charges, EBITDA), parts par entité", () => {
   const fx = { horizon_months: 2, global: { series: [], blocked: null },
     by_entity: { "1000": { series: [], blocked: null, kpi: { revenue: 6e6, ebitda: 9e5 } },
                  "2000": { series: [], blocked: null, kpi: { revenue: 2e6, ebitda: -3e5 } } },
@@ -421,11 +421,13 @@ test("camemberts par entité : trois postes, un beignet par périmètre, EBITDA 
     entity_names: { "1000": "Meridian France" },
     kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 8e6 }, { id: "ebitda", label: "E", unit: "EUR", value: 6e5 }],
     series: [{ period: "2026-01", revenue: 2e6, ebitda: 3e5 }, { period: "2026-02", revenue: 2e6, ebitda: 3e5 }] });
-  assert.match(html, /id="bS"[^>]*>Pies/, "le bouton Sankey est remplacé par Pies");
-  assert.ok(!/drawSankey/.test(html), "plus aucune trace du rendu Sankey");
-  assert.match(html, /function drawPies\(\)/, "rendu des camemberts");
-  assert.match(html, /type:'doughnut'/, "beignets Chart.js");
-  assert.match(html, /var neg=\(it\.eb!==null&&it\.eb<0\)/, "cas EBITDA négatif détecté");
-  assert.match(html, /negative EBITDA/, "libellé pour la part impossible");
-  assert.match(html, /Meridian France/, "les camemberts portent le nom des sociétés");
+  assert.match(html, /id="bS"[^>]*>Pies/, "bouton Pies");
+  assert.ok(!/drawSankey/.test(html), "plus aucune trace du Sankey");
+  assert.match(html, /var CATS=\[\['rev'/, "trois camemberts, un par poste");
+  assert.match(html, /rows\.sort\(function\(a,b\)\{return b\.rev-a\.rev;\}\)/, "entités triées par contribution");
+  assert.match(html, /x\.label\+': '\+fmtN\(x\.parsed\)\+' \('\+p\.toFixed\(1\)\+' %\)'/, "infobulle : montant et part");
+  assert.match(html, /Negative contribution:/, "contribution négative listée, pas dessinée");
+  assert.match(html, /id="pieleg"/, "légende commune : une couleur par société");
+  assert.match(html, /Meridian France/, "noms de société dans les parts");
 });
+

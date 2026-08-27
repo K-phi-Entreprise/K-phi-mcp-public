@@ -227,3 +227,24 @@ test("FsStore : une analyse et son jeton survivent à un REDÉMARRAGE du process
   assert.equal(await s2.consumeUploadToken(tok), rec.id, "le jeton d'upload survit aussi");
   assert.equal(await s2.consumeUploadToken(tok), undefined, "usage unique préservé");
 });
+
+/* ── Réconciliation dashboard/app (captures 2026-08-27) ─────────── */
+test("devise non monétaire ignorée (« 0.01 » vu en prod) — jamais collée aux montants", () => {
+  const html = renderReport("an_ccy", { ...R, detected: { ...R.detected, currency: "0.01" } });
+  assert.doesNotMatch(html, /M 0\.01|k 0\.01/, "aucun montant suffixé par une pseudo-devise");
+  const ok = renderReport("an_ccy2", { ...R, detected: { ...R.detected, currency: "EUR" } });
+  assert.match(ok, /EUR/, "une vraie devise reste affichée");
+});
+
+test("forecast sans budget : le graphique montre les ENCAISSEMENTS projetés + la doctrine expliquée", () => {
+  const fx = { horizon_months: 3,
+    global: { series: [{ period: "2026-01", sales: 0, collections: 120000 }], blocked: null },
+    by_entity: {}, by_bu: {},
+    methods: { dso_by_entity: { E9: { value: -32231, source: "gl_observed" } }, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_nb", { ...R, forecast: fx, report_version: "1.1",
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /Projected collections \(cash\)/, "libellé encaissements disponible");
+  assert.match(html, /does not extrapolate future revenue/, "doctrine « pas de budget, pas d'extrapolation » dite");
+  assert.match(html, /okD=v=>/, "garde-fou DSO présent");
+  assert.match(html, /id="fcdoc"/, "emplacement de la note doctrine rendu");
+});

@@ -8,13 +8,19 @@
 import type { AnalysisResult, Kpi } from "./engine.js";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
-const fmtV = (k: Kpi) => {
+/* Une devise se rend UNIQUEMENT si elle ressemble à un code/symbole
+   monétaire. Vu en prod : la colonne « Exchange Rate » d'un export SAP a
+   fait détecter « 0.01 » comme devise → « 3.18 M 0.01 » sur chaque montant. */
+const CCY_OK = /^([A-Z]{3}|[€$£¥₣])(,\s*([A-Z]{3}|[€$£¥₣]))*$/;
+const safeCcy = (c?: string): string => (c && CCY_OK.test(c.trim()) ? c.trim() : "");
+const fmtV = (k: Kpi, ccy?: string) => {
   if (k.unit === "%") return `${k.value.toFixed(1)} %`;
   if (k.unit === "x") return `${k.value.toFixed(2)}x`;
   if (k.unit === "days") return `${Math.round(k.value)} j`;
   const a = Math.abs(k.value);
   const n = a >= 1e6 ? `${(k.value / 1e6).toFixed(2)} M` : a >= 1e3 ? `${(k.value / 1e3).toFixed(0)} k` : k.value.toFixed(0);
-  return `${n} ${k.unit}`;
+  const u = k.unit && CCY_OK.test(k.unit) ? k.unit : (ccy ?? "");
+  return u ? `${n} ${u}` : n;
 };
 const GMAX: Record<string, [number, number]> = { ebitda_margin:[0,30], net_margin:[0,20], roe:[0,25], dso:[0,120], dio:[0,150], ccc:[0,150], net_debt_ebitda:[0,5], debt_to_equity:[0,3], dscr:[0,3], interest_coverage:[0,8], current_ratio:[0,3], quick_ratio:[0,2] };
 const gauge = (k: Kpi): string => {
@@ -85,6 +91,8 @@ const I18N = {
         blocked: "Projection blocked by the engine for this scope: ", threshold: "threshold", covenant: "covenant",
         drill: "Breakdown by entity — actual (period) and projected (horizon)",
         realBar: "Actual revenue", projBar: "Projected revenue", ebitdaLine: "Actual EBITDA",
+        projCash: "Projected collections (cash)", noD: "scopes excluded (implied DSO out of range)",
+        noBudget: "No budget loaded: the K-Φ engine does not extrapolate future revenue — a sales forecast is a client decision, never invented. The projection unwinds your existing receivables and payables into cash; that is what the gray bars show. Load a budget in K-Φ to project revenue too.",
         methWc: "Working-capital mechanics", methDefault: "Engine projection (trend + working capital) — details in K-Φ",
         obs: "GL-observed", fb: "fallback", recv: "Receivables", pay: "Payables" },
   fr: { title: "Analyse", link24: "lien 24 h", open: "Ouvrir dans K-Φ →", openLong: "Ouvrir l'analyse détaillée dans K-Φ →",
@@ -100,12 +108,15 @@ const I18N = {
         blocked: "Projection bloquée par le moteur pour ce périmètre : ", threshold: "seuil", covenant: "covenant",
         drill: "Décomposition par entité — réel (exercice) et projeté (horizon)",
         realBar: "CA réel", projBar: "CA projeté", ebitdaLine: "EBITDA réel",
+        projCash: "Encaissements projetés", noD: "périmètres écartés (DSO implicite hors plage)",
+        noBudget: "Aucun budget chargé : le moteur K-Φ n'extrapole pas le CA futur — une prévision de ventes est une décision client, jamais inventée. La projection déroule vos créances et dettes existantes en trésorerie : c'est ce que montrent les barres grises. Chargez un budget dans K-Φ pour projeter aussi le CA.",
         methWc: "Mécanique BFR", methDefault: "Projection moteur (tendance + BFR) — détail dans K-Φ",
         obs: "observé GL", fb: "repli", recv: "Créances", pay: "Fournisseurs" },
 };
 
 export function renderReport(analysisId: string, r: AnalysisResult): string {
   const T = I18N[r.locale === "fr" ? "fr" : "en"];
+  const CCY = safeCcy(r.detected.currency);
   const lbl = (k: Kpi) => (r.locale === "fr" ? k.label : (EN_LABELS[k.id] ?? k.label));
   const byId = new Map(r.kpis.map(k => [k.id, k]));
   const tiles = ["revenue", "ebitda_margin", "dso", "net_debt_ebitda"]
@@ -142,10 +153,10 @@ td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
-<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} · ${esc(r.detected.currency)} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>
+<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>
 <a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
-<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
+<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}
 <span>${series.length > 1 ? `<button class="mbtn" id="bM" onclick="cmode('M')">${T.monthly}</button> <button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> ` : ""}<button class="mbtn" id="bF" style="border-color:#898781" onclick="fcpanel()">${T.project}</button></span></h2>
 ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : ""}
@@ -156,11 +167,12 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
     <span class="mut" style="margin-left:auto">${T.horizon} ${(r.forecast?.horizon_months ?? 6)} ${T.months}</span>
   </div>
   <div id="fcblocked" class="cav" style="display:none"></div>
+  <div id="fcdoc" style="display:none;background:#1b1a1e;border:1px solid #2c2b30;color:#b7b5af;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px"></div>
   <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
   <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drill}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div></div>
 </div>
 ${covs.length ? `<h2>${T.covs}</h2><div class="covrow">${covs.map(k =>
-  `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(lbl(k))} ${fmtV(k)} <span class="mut">${T.threshold} ${k.threshold}</span></span>`).join("")}</div>` : ""}
+  `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(lbl(k))} ${fmtV(k, CCY)} <span class="mut">${T.threshold} ${k.threshold}</span></span>`).join("")}</div>` : ""}
 ${r.alerts.length ? `<h2>${T.alerts}</h2>${r.alerts.map(a => `<div class="cav">⚠ ${esc(a)}</div>`).join("")}` : ""}
 <h2>${T.kpi}</h2>
 ${(() => {
@@ -169,11 +181,11 @@ ${(() => {
   const tiles0 = rows0.length ? `<div style="color:#b7b5af;font-weight:600;margin:14px 0 8px">${T.sections[0]}</div>
   <div class="tiles" style="margin:0 0 4px">${rows0.map(k =>
     `<div class="tile"><div class="l">${esc(lbl(k))}</div>
-     <div class="v" style="color:${color(k)}">${fmtV(k)}${trendArrow(k.id, series)}</div>
+     <div class="v" style="color:${color(k)}">${fmtV(k, CCY)}${trendArrow(k.id, series)}</div>
      <div style="margin-top:5px">${gauge(k)} <span class="r mut" style="font-size:11px">${refCell(k, r.locale)}</span></div></div>`).join("")}</div>` : "";
   const grouped = new Set(GROUPS.flatMap(g => g[1]));
   const rest = r.kpis.filter(k => !grouped.has(k.id));
-  const row = (k: Kpi) => `<tr><td>${esc(lbl(k))}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k, r.locale)}</td></tr>`;
+  const row = (k: Kpi) => `<tr><td>${esc(lbl(k))}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k, CCY)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k, r.locale)}</td></tr>`;
   const tbl = GROUPS.slice(1).map(([, ids], gi) => {
     const rows = ids.map(id => byId.get(id)).filter((k): k is Kpi => !!k);
     return rows.length ? `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">${T.sections[gi + 1]}</td></tr>` + rows.map(row).join("") : "";
@@ -202,7 +214,7 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine }).replace(/</g, "\\u003c")};</script>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null;const FT=window.__FT;
 const FOPT=(typeof OPT!=='undefined')?OPT:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
@@ -238,35 +250,43 @@ function fcdraw(){
   const m=window.__FC.methods||{},box=document.getElementById('fcmeth');
   const card=(t,b)=>'<div style="border:1px solid #2c2b30;border-radius:10px;padding:8px 12px;font-size:13px"><span class="mut" style="font-size:12px">'+t+'</span><br>'+b+'</div>';
   const src=s=>s==='gl_observed'?FT.obs:FT.fb;
+ const okD=v=>typeof v==='number'&&isFinite(v)&&v>=0&&v<=365;
   let cards='';
   const dm=kind==='e'?m.dso_by_entity:kind==='b'?m.dso_by_bu:null;
   const pm=kind==='e'?m.dpo_by_entity:kind==='b'?m.dpo_by_bu:null;
-  if(dm&&dm[id])cards+=card(FT.recv,'DSO '+dm[id].value+' j ('+src(dm[id].source)+', '+id+')');
-  if(pm&&pm[id])cards+=card(FT.pay,'DPO '+pm[id].value+' j ('+src(pm[id].source)+', '+id+')');
+  if(dm&&dm[id]&&okD(dm[id].value))cards+=card(FT.recv,'DSO '+dm[id].value+' j ('+src(dm[id].source)+', '+id+')');
+  if(pm&&pm[id]&&okD(pm[id].value))cards+=card(FT.pay,'DPO '+pm[id].value+' j ('+src(pm[id].source)+', '+id+')');
   if(kind==='g'){const es=Object.entries(m.dso_by_entity||{});
-    if(es.length)cards+=card(FT.recv,'DSO/entity: '+es.map(([e,x])=>e+' '+x.value+' j').join(' · '));
+    if(es.length)cards+=card(FT.recv,'DSO/entity: '+es.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));
     const ps=Object.entries(m.dpo_by_entity||{});
-    if(ps.length)cards+=card(FT.pay,'DPO/entity: '+ps.map(([e,x])=>e+' '+x.value+' j').join(' · '));}
+    if(ps.length)cards+=card(FT.pay,'DPO/entity: '+ps.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));}
   const rows=sc.series||[];
-  if(rows.length&&rows[0].impliedDSO!==undefined)cards+=card(FT.methWc,'impliedDSO '+Math.round(rows[0].impliedDSO)+' j · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' j':'—')+' (dérivés du GL du périmètre)');
+  if(rows.length&&rows[0].impliedDSO!==undefined)if(okD(rows[0].impliedDSO))cards+=card(FT.methWc,'impliedDSO '+Math.round(rows[0].impliedDSO)+' j · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' j':'—')+' (dérivés du GL du périmètre)');
   box.innerHTML=cards||card('—',FT.methDefault);
   /* projection sur le graphique principal : ventes projetées en gris (données moteur, jamais recalculées) */
   if(typeof S!=='undefined'&&typeof draw==='function'){
     if(CHD){CHD.destroy();CHD=null;}
     const labels=S.map(s=>s.period).concat(rows.map(x=>x.period));
     const rev=S.map(s=>s.revenue??null).concat(rows.map(()=>null));
-    const proj=S.map(()=>null).concat(rows.map(x=>x.sales??null));
+    const hasSales=rows.some(x=>(x.sales||0)>0);
+    /* Doctrine moteur : « pas de budget, pas d'extrapolation » — sans budget
+       le CA futur n'est pas inventé (sales=0) ; la projection déroule les
+       créances/dettes en TRÉSORERIE. On trace ce que le moteur calcule. */
+    const proj=S.map(()=>null).concat(rows.map(x=>hasSales?(x.sales??null):(x.collections??null)));
+    const projLbl=hasSales?FT.projBar:FT.projCash;
+    var dn=document.getElementById('fcdoc');
+    if(dn){dn.style.display=hasSales?'none':'block';dn.textContent='ℹ '+FT.noBudget;}
     if(CH)CH.destroy();
     CH=new Chart(document.getElementById('c'),{data:{labels,datasets:[
       {type:'bar',label:FT.realBar,data:rev,backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:24},
-      {type:'bar',label:FT.projBar+' ('+(kind==='g'?FT.global:id)+')',data:proj,backgroundColor:'rgba(137,135,129,0.45)',borderRadius:4,maxBarThickness:24},
+      {type:'bar',label:projLbl+' ('+(kind==='g'?FT.global:id)+')',data:proj,backgroundColor:'rgba(137,135,129,0.45)',borderRadius:4,maxBarThickness:24},
       {type:'line',label:FT.ebitdaLine,data:S.map(s=>s.ebitda??null).concat(rows.map(()=>null)),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}
     ]},options:OPT});}
   /* drill : réel FY + projeté par entité, côte à côte (critère 4) */
   const dr=document.getElementById('fcdrill');
   if(dr.style.display!=='none'){
     const ents=Object.keys(window.__FC.by_entity||{});
-    const projByEnt=ents.map(e=>(window.__FC.by_entity[e].series||[]).reduce((a,x)=>a+(x.sales||0),0));
+    const projByEnt=ents.map(e=>(window.__FC.by_entity[e].series||[]).reduce((a,x)=>a+(x.sales||x.collections||0),0));
     const dsoE=(window.__FC.methods||{}).dso_by_entity||{};
     const realByEnt=ents.map(e=>dsoE[e]&&dsoE[e].basis!==undefined?dsoE[e].basis:null);
     if(CHD)CHD.destroy();

@@ -66,6 +66,8 @@ export interface AnalysisResult {
     methods: Record<string, Record<string, { value: number; source: string }>>;
   };
   report_version?: string;
+  /** Langue de rendu du dashboard — "en" par défaut, "fr" si demandé (2026-08-27). */
+  locale?: "en" | "fr";
   /** Série mensuelle (revenue/EBITDA) pour le dashboard — additive, absente sur les moteurs mock/antérieurs. */
   series?: Array<{ period: string; revenue?: number; ebitda?: number }>;
   alerts: string[];

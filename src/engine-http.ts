@@ -141,6 +141,7 @@ export class KphiHttpEngine implements AnalysisEngine {
     const result = toAnalysisResult(parsed, position, monthly, input, periods);
     result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
     result.report_version = "1.1";
+    result.locale = input.locale === "fr" ? "fr" : "en";
     if (fcRulesSeeded > 0)
       result.notes.push(`Règles de flux générées automatiquement de la classification du GL (${fcRulesSeeded} règles : créances→DSO, fournisseurs→DPO, intérêts, taxes, paie) — les DSO/DPO appliqués sont dérivés des écritures du périmètre ; ajustables dans K-Φ.`);
     // Lien signé 24 h, lecture seule, ouvre le tenant dans l'app sans login.

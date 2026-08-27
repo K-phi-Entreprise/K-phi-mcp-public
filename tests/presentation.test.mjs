@@ -97,7 +97,7 @@ test("dashboard : tuiles, covenants, table, CTA /open, réserves conditionnelles
 test("dashboard mono-entité mono-devise : AUCUN bandeau de réserves à tort", () => {
   const html = renderReport("an_x2", { ...R, series: [] });
   assert.doesNotMatch(html, /Réserves de lecture/);
-  assert.doesNotMatch(html, /chart\.umd/, "pas de graphique sans série");
+  assert.doesNotMatch(html, /Chiffre d'affaires &amp; EBITDA/, "pas de section graphique mensuel sans série (la lib, elle, sert au panneau forecast)");
 });
 
 test("dashboard : échappement HTML des données (un nom de fichier ne devient pas du script)", () => {
@@ -138,4 +138,14 @@ test("forecast absent (analyse 1.0) : le bouton EXISTE quand même et explique (
   const html = renderReport("an_old", { ...R });
   assert.match(html, /id="bF"[^>]*>Projeter/);
   assert.match(html, /antérieure au contrat 1\.1/);
+});
+
+test("durcissement : Chart.js émis UNE fois, inconditionnel — balance mono-mois multi-entités = drill sans crash", () => {
+  const fc = { horizon_months: 6, global: { series: [], blocked: null },
+    by_entity: { E1: { series: [{ period: "2026-01", sales: 60 }], blocked: null },
+                 E2: { series: [{ period: "2026-01", sales: 40 }], blocked: null } },
+    by_bu: {}, methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_tb", { ...R, forecast: fc, report_version: "1.1", series: [] });
+  assert.equal(html.split("chart.umd.js").length - 1, 1, "CDN une seule fois");
+  assert.match(html, /const FOPT=/, "options de repli présentes sans le graphique principal");
 });

@@ -126,8 +126,8 @@ ${(() => { const gd = new Set(GROUPS.flatMap(g => g[1])); const rest = r.kpis.fi
 <a class="cta" style="margin-top:0" href="/a/${esc(analysisId)}/open">Ouvrir l'analyse détaillée dans K-Φ →</a>
 <span class="mut">Bilan · P&amp;L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.</span>
 </div>
-${series.length > 1 ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+${series.length > 1 ? `<script>
 const S=${JSON.stringify(series)};let CM='M',CH;
 const FYr=S.reduce((a,s)=>a+(s.revenue||0),0),FYe=S.reduce((a,s)=>a+(s.ebitda||0),0);
 const OPT={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
@@ -156,6 +156,7 @@ draw();</script>` : ""}
 <script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null;
+const FOPT=(typeof OPT!=='undefined')?OPT:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
 function fcpanel(){
   FCON=!FCON;const p=document.getElementById('fcp');
   document.getElementById('bF').textContent=FCON?'Masquer la projection':'Projeter →';
@@ -223,7 +224,7 @@ function fcdraw(){
     CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:ents,datasets:[
       {label:'CA réel (exercice)',data:realByEnt,backgroundColor:'#2a78d6',borderRadius:3},
       {label:'CA projeté (horizon)',data:projByEnt,backgroundColor:'rgba(137,135,129,0.5)',borderRadius:3},
-    ]},options:{...OPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}}}});}
+    ]},options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}}}});}
 }
 </script>
 </div></body></html>`;

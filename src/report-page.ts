@@ -81,7 +81,9 @@ const I18N = {
   en: { title: "Analysis", link24: "24 h link", open: "Open in K-Φ →", openLong: "Open the full analysis in K-Φ →",
         caveats: "Reading caveats", caveatConso: "Group = simple sum of entities, intercompany flows not eliminated.",
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
-        pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By BU", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
+        axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
+        axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -98,7 +100,9 @@ const I18N = {
   fr: { title: "Analyse", link24: "lien 24 h", open: "Ouvrir dans K-Φ →", openLong: "Ouvrir l'analyse détaillée dans K-Φ →",
         caveats: "Réserves de lecture", caveatConso: "Conso = somme simple des entités, flux intercos non éliminés.",
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
-        pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par BU", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
+        axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
+        axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -183,7 +187,10 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
   <div id="fcblocked" class="cav" style="display:none"></div>
   <div id="fcdoc" style="display:none;background:#1b1a1e;border:1px solid #2c2b30;color:#b7b5af;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px"></div>
   <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
-  <div id="fcdrill" style="display:none;margin-top:10px"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+  <div id="fcdrill" style="display:none;margin-top:10px">${(r.analytic_axes?.length ?? 0) ? `<div class="mut" style="font-size:12.5px;margin:10px 0 6px">${T.axesFound} ${
+    r.analytic_axes!.map(a => `<b>${esc(a.label)}</b> (${esc(a.column)}${a.coverage !== undefined ? `, ${a.coverage}%` : ""})`).join(" · ")
+  }${r.analytic_axis ? ` — ${T.axisUsed} <b>${esc(r.analytic_axis.label)}</b>. ${T.axisSwitch}` : ""}</div>` : ""}
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
     <span class="mut">${T.drillP}</span>
     <span style="margin-left:auto"><button class="mbtn" id="dE" onclick="ddim('e')">${T.byEntity}</button>
     <button class="mbtn" id="dB" onclick="ddim('b')">${T.byBU}</button></span>
@@ -233,7 +240,7 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU) }).replace(/</g, "\\u003c")};</script>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,DDIM='e';
 function ddim(d){DDIM=d;fcdraw();}
@@ -351,7 +358,15 @@ function fcdraw(){
       t+='<tr style="border-top:1px solid #2c2b30"><td style="font-weight:600">'+FT.total+'</td>'+
         colTot.map(function(v){return '<td class="r" style="font-weight:600">'+fmtN(v)+'</td>';}).join('')+
         '<td class="r" style="font-weight:600">'+fmtN(colTot.reduce(function(a,b){return a+b;},0))+'</td></tr></table>';
-      document.getElementById('fctbl').innerHTML=t;
+      /* Projection d'axe intégralement nulle : ce n'est pas un bug d'affichage,
+         c'est que l'axe ne porte pas les comptes de BILAN (créances, dettes,
+         banque). Sans eux, il n'y a aucun flux à dérouler. On l'explique au
+         lieu d'afficher une grille de zéros. */
+      var anyVal=dsEnt.some(function(d){return d.data.some(function(v){return (v||0)!==0;});});
+      document.getElementById('fctbl').innerHTML=anyVal?t:
+        '<div style="border:1px solid #2c2b30;border-radius:10px;padding:14px;color:#b7b5af;font-size:13.5px">'+
+        FT.axisNoCash+'</div>';
+      document.getElementById('cd').parentNode.style.display=anyVal?'':'none';
     })();
     CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:perSet,datasets:dsEnt},
       options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{...FOPT.scales,x:{...FOPT.scales.x,stacked:true},y:{...FOPT.scales.y,stacked:true}}}});}

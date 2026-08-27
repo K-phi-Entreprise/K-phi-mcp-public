@@ -71,7 +71,7 @@ export interface AnalysisResult {
   entity_names?: Record<string, string>;
   /** Axe analytique utilisé pour ce découpage, et tous ceux disponibles. */
   analytic_axis?: { label: string; column: string };
-  analytic_axes?: Array<{ label: string; column: string }>;
+  analytic_axes?: Array<{ label: string; column: string; coverage?: number; balance_sheet_coverage?: number }>;
   /** Langue de rendu du dashboard — "en" par défaut, "fr" si demandé (2026-08-27). */
   locale?: "en" | "fr";
   /** Série mensuelle (revenue/EBITDA) pour le dashboard — additive, absente sur les moteurs mock/antérieurs. */

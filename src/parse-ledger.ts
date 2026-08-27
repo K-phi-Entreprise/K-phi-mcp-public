@@ -63,7 +63,7 @@ export interface ParseResult {
   /** Valeurs de l'axe analytique retenu (périmètres de scope pour le forecast). */
   bus: string[];
   /** Tous les axes analytiques détectés dans l'export (l'utilisateur peut basculer). */
-  analytic_axes: Array<{ label: string; column: string }>;
+  analytic_axes: Array<{ label: string; column: string; coverage?: number; balance_sheet_coverage?: number }>;
   /** Axe effectivement utilisé pour découper cette analyse. */
   analytic_axis?: { label: string; column: string };
   /** code entité → nom lisible, quand l'export porte les deux. */
@@ -415,6 +415,8 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
      l'utilisateur doit pouvoir basculer sans qu'on choisisse à sa place. */
   const axesFound: Array<{ label: string; header: string; idx: number }> = [];
   let chosenAxis: { label: string; header: string; idx: number } | null = null;
+  const axisFill = new Map<number, { all: number; bs: number }>();
+  let bsRows = 0, allRows = 0;
   const header = splitLine(lines[0], delim);
   const normH = header.map(normHeader);
   const warnings: string[] = [];
@@ -589,6 +591,21 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const ccy = m.ccy != null && c[m.ccy] ? c[m.ccy].toUpperCase() : "EUR";
     ccys.set(ccy, (ccys.get(ccy) ?? 0) + 1);
     if (m.id != null && c[m.id]) docIdRows++;
+    /* Couverture des axes, mesurée ligne à ligne (un axe peut couvrir le
+       résultat sans couvrir le bilan — cas classique du centre de profit). */
+    {
+      allRows++;
+      const isBs = /^[1-5]/.test(acct);
+      if (isBs) bsRows++;
+      for (const a of axesFound) {
+        const v = c[a.idx];
+        if (v && String(v).trim()) {
+          const f = axisFill.get(a.idx) ?? { all: 0, bs: 0 };
+          f.all++; if (isBs) f.bs++;
+          axisFill.set(a.idx, f);
+        }
+      }
+    }
     if (m.ename != null && c[m.ename] && rowEntity) {
       const nm = String(c[m.ename]).trim();
       if (nm && nm !== rowEntity && !entityNames[rowEntity]) entityNames[rowEntity] = nm;
@@ -655,7 +672,16 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const res = finish("csv", entries, dropped, warnings, ccys, coaDict,
     entries.length ? docIdRows / entries.length : 0);
   res.entityNames = entityNames;
-  res.analytic_axes = axesFound.map(a => ({ label: a.label, column: a.header }));
+  /* Couverture de chaque axe, mesurée sur les lignes : un centre de profit
+     couvre souvent 80 % du RÉSULTAT mais 25 % du BILAN — les créances, dettes
+     et banque n'en portent pas. Sans cette mesure, on affiche une projection
+     de trésorerie vide sans pouvoir l'expliquer. */
+  res.analytic_axes = axesFound.map(a => {
+    const f = axisFill.get(a.idx) ?? { all: 0, bs: 0 };
+    return { label: a.label, column: a.header,
+             coverage: allRows ? Math.round(100 * f.all / allRows) : 0,
+             balance_sheet_coverage: bsRows ? Math.round(100 * f.bs / bsRows) : 0 };
+  });
   res.analytic_axis = chosenAxis ? { label: chosenAxis.label, column: chosenAxis.header } : undefined;
   res.column_map = columnMap;
   res.unmapped_headers = unmapped;
@@ -704,6 +730,7 @@ export const ANALYTIC_AXES: Array<[string, string[]]> = [
   ["Channel", ["canal", "channel", "vkorg", "salesorg", "salesorganization", "circuit"]],
   ["Region", ["region", "région", "zone", "territoire", "territory", "market", "pays", "country", "werks", "plant", "site2"]],
   ["Analytic axis", ["analytique", "analytic", "dimension1", "dim1", "axe", "axeanalytique", "class", "classe", "tag", "categorie", "catégorie"]],
+  ["Tax code", ["taxcode", "codetaxe", "mwskz", "vatcode", "tvacode", "taxkey"]],
 ];
 
 export const isCurrencyCode = (v: string): boolean =>

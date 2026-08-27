@@ -1,3 +1,49 @@
+# ★★★ PROCHAIN CHANTIER — HISTORIQUE MENSUEL PAR PÉRIMÈTRE, À LA DEMANDE (option A, validée 2026-08-27)
+
+Dernier écart : changer de périmètre rescope tuiles, KPI, Sankey, projection,
+méthodes et décomposition — mais PAS le graphique historique mensuel, qui
+reste groupe.
+
+Correction retenue : **A — chargement à la demande**. Aucune PR moteur
+nécessaire : la boucle mensuelle du connecteur accepte déjà `?entity=` /
+`?bu=` (c'est ce que fait le forecast). Il suffit de la rejouer scopée,
+quand l'utilisateur le demande.
+
+## Pourquoi A plutôt que B ou C
+- B (tout d'avance) : 6 mois × 8 entités = 48 appels ajoutés à CHAQUE analyse,
+  plusieurs secondes pour des courbes souvent jamais regardées.
+- C (`series_by_scope` moteur) : le plus élégant à terme, mais touche le
+  dépôt moteur ; à faire quand un chantier moteur s'ouvre.
+- A : zéro coût sur l'analyse initiale, ~1 s au premier clic sur un périmètre,
+  mis en cache ensuite.
+
+## Implémentation
+1. Route `GET /a/:id/series?scope=e:1000` (ou `b:CC-100`) :
+   - relit le record persisté (token sandbox + versions déjà stockés) ;
+   - rejoue la boucle mensuelle avec `entity=`/`bu=` ;
+   - renvoie `[{period, revenue, ebitda}]` ;
+   - MET EN CACHE dans le record (`series_by_scope[scope]`) : un périmètre
+     n'est calculé qu'une fois, y compris entre deux visites du lien.
+   - Si le tenant sandbox a expiré (24 h) : 410 + message explicite.
+2. Dashboard : au changement de périmètre, si la série du périmètre n'est pas
+   déjà en mémoire, afficher un état de chargement SUR le graphique (pas de
+   page bloquée), appeler la route, redessiner. Échec → garder l'historique
+   groupe avec une mention, jamais une courbe fausse.
+3. Retirer de la barre la mention « the historical chart stays group-level ».
+4. Le mode Waterfall suit alors le périmètre lui aussi (il dérive des mêmes
+   séries) — l'asymétrie Sankey scopé / Waterfall groupe disparaît.
+
+## Critères d'acceptation
+1. Sélectionner une entité redessine l'historique mensuel sur SES chiffres,
+   en moins de ~2 s, sans recharger la page.
+2. Revenir sur « All entities » restaure l'historique groupe sans appel.
+3. Deuxième sélection du même périmètre : instantanée (cache).
+4. Aucun coût ajouté à l'analyse initiale (mesuré : durée inchangée).
+5. Lien expiré ou appel en échec → l'historique groupe reste affiché avec une
+   mention, jamais de valeurs inventées ni de graphique vide.
+
+---
+
 # ★★ v1.2 — NON NÉGOCIABLE : LE PÉRIMÈTRE PILOTE TOUTE LA PAGE (2026-08-27)
 
 Exigence fondateur, verbatim : « scope should be on very top and drive all

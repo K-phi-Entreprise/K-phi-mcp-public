@@ -210,3 +210,20 @@ test("la page d'upload est un template constant : input fichier, PUT via pathnam
   assert.match(html, /switch back to your Claude conversation/, "consigne de retour explicite : fermer l'onglet, répondre done");
   assert.doesNotMatch(html, /\$\{/, "template constant, aucune interpolation serveur");
 });
+
+/* ── Persistance du store (incident du premier upload réel, 2026-08-27) ── */
+test("FsStore : une analyse et son jeton survivent à un REDÉMARRAGE du process", async () => {
+  const { FsStore } = await import("../dist/store.js");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(tmpdir() + "/kphi-store-test-");
+  const s1 = new FsStore(dir);
+  const rec = await s1.create({ status: "ready", input_meta: { format: "csv" } });
+  const tok = await s1.issueUploadToken(rec.id, 900_000);
+  /* nouvelle instance = ce que fait un redeploy Render */
+  const s2 = new FsStore(dir);
+  const back = await s2.get(rec.id);
+  assert.equal(back?.id, rec.id, "l'analyse survit au redémarrage");
+  assert.equal(await s2.consumeUploadToken(tok), rec.id, "le jeton d'upload survit aussi");
+  assert.equal(await s2.consumeUploadToken(tok), undefined, "usage unique préservé");
+});

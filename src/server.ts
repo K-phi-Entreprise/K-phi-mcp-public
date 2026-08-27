@@ -15,7 +15,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { registerTools } from "./tools.js";
 import { MockEngine, type AnalysisEngine } from "./engine.js";
 import { KphiHttpEngine } from "./engine-http.js";
-import { MemoryStore, type Store } from "./store.js";
+import { FsStore, MemoryStore, type Store } from "./store.js";
 import { RateLimiter, contextMiddleware, type RequestContext } from "./ratelimit.js";
 import { createUploadStorage } from "./upload-storage.js";
 import { renderReport } from "./report-page.js";
@@ -89,7 +89,12 @@ if (uploadSetup.storage) {
 if (engine instanceof KphiHttpEngine && uploadSetup.storage) {
   engine.cfg.storageRead = async (key: string) => (await uploadSetup.storage!.read(key)).toString("utf8");
 }
-const store: Store = new MemoryStore();
+/* Store persistant dès qu'un disque est configuré (même variable que les
+   uploads) : sans lui, un redeploy perd les analyses en cours — vécu. */
+const STORE_DIR = uploadSetup.kind === "tmp" ? (process.env.KPHI_STORE_DIR ?? "/tmp/kphi-store") : undefined;
+const store: Store = STORE_DIR ? new FsStore(STORE_DIR) : new MemoryStore();
+if (STORE_DIR) console.log(`store: persistant — ${STORE_DIR} (TTL 24 h, survit aux redeploys)`);
+else console.log("store: mémoire — les analyses sont perdues à chaque redeploy");
 const limiter = new RateLimiter({
   analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
   analysesPerSessionPerDay: Number(process.env.RL_PER_SESSION_PER_DAY ?? 5),

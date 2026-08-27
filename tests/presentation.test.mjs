@@ -199,3 +199,14 @@ test("le texte narre le forecast : règles listées, périmètres avec DSO obser
   assert.match(txt, /\*\*E1\*\* — 1 months projected · DSO 27 j \(GL-observed\)/, "périmètre + méthode observée");
   assert.match(txt, /\*\*E2\*\* — ⚠ blocked by the engine: no history/, "blocage verbatim, jamais masqué");
 });
+
+/* ── Page d'upload (GET) — capture « Cannot GET » 2026-08-27 ─────── */
+test("la page d'upload est un template constant : input fichier, PUT via pathname, token jamais injecté", async () => {
+  const { uploadPageHtml } = await import("../dist/upload-page.js");
+  const html = uploadPageHtml();
+  assert.match(html, /type="file"/);
+  assert.match(html, /location\.pathname/, "le PUT cible l'URL courante — le token reste hors du HTML");
+  assert.match(html, /500\u00a0MB|500&nbsp;MB/);
+  assert.match(html, /Return to your Claude conversation/, "consigne de retour vers la conversation");
+  assert.doesNotMatch(html, /\$\{/, "template constant, aucune interpolation serveur");
+});

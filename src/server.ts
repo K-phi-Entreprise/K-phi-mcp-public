@@ -8,6 +8,7 @@
  *   PUT  /upload/:token  — dépôt direct du fichier (lien signé, 15 min)
  *   GET  /healthz
  */
+import { uploadPageHtml } from "./upload-page.js";
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -167,6 +168,14 @@ app.all("/mcp", (_req, res) => {
 
 // ---- Upload signé (gros fichiers) ----
 // En prod : générer plutôt une URL pré-signée S3/R2 et déclencher l'analyse par événement.
+/* GET = la page humaine (capture « Cannot GET », 2026-08-27) : les relais
+   envoient ce lien à des personnes ; un clic navigateur doit aboutir à une
+   interface, pas à une erreur. Ne consomme PAS le token — seul le PUT le
+   fait ; un lien expiré s'exprime au PUT (410), affiché par la page. */
+app.get("/upload/:token", (_req, res) => {
+  res.status(UPLOAD_ENABLED ? 200 : 501).type("html").send(uploadPageHtml());
+});
+
 app.put("/upload/:token",
   // Garde AVANT express.raw : refuser sans bufferiser jusqu'à 500 Mo en mémoire.
   // 501 (pas 4xx) : la route existe, la capacité n'est pas implémentée ici.

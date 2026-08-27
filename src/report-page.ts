@@ -81,7 +81,7 @@ const I18N = {
   en: { title: "Analysis", link24: "24 h link", open: "Open in K-Φ →", openLong: "Open the full analysis in K-Φ →",
         caveats: "Reading caveats", caveatConso: "Group = simple sum of entities, intercompany flows not eliminated.",
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
-        chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        pdf: "Download PDF", total: "Total", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -98,7 +98,7 @@ const I18N = {
   fr: { title: "Analyse", link24: "lien 24 h", open: "Ouvrir dans K-Φ →", openLong: "Ouvrir l'analyse détaillée dans K-Φ →",
         caveats: "Réserves de lecture", caveatConso: "Conso = somme simple des entités, flux intercos non éliminés.",
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
-        chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        pdf: "Télécharger en PDF", total: "Total", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -147,6 +147,20 @@ table{font-size:15px;width:100%;border-collapse:collapse;font-size:13px;margin-t
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
+@media print{
+  /* PDF = la même page, tout déplié, encre économe : le lecteur imprime ce
+     qu'il voit, sans dépendance ni rendu serveur. */
+  body{background:#fff;color:#111}
+  .wrap{max-width:none;padding:0}
+  .tile,.panel,table,.cav{background:#fff !important;border-color:#ccc !important;color:#111 !important}
+  .mut,.l{color:#555 !important}
+  .mbtn,.ctah,.cta,#bF,select{display:none !important}
+  details{display:block}details>summary{list-style:none}
+  #fcp{display:block !important}
+  h1,h2{color:#111}
+  tr,.tile,.chartbox{break-inside:avoid}
+  a[href]:after{content:""}
+}
 .mbtn{background:#1b1a1e;color:#b7b5af;border:1px solid #2c2b30;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
 .ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
 .chartbox{height:250px;position:relative;margin-top:6px}
@@ -154,7 +168,7 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
 <span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>
-<a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
+<button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}
@@ -169,7 +183,8 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
   <div id="fcblocked" class="cav" style="display:none"></div>
   <div id="fcdoc" style="display:none;background:#1b1a1e;border:1px solid #2c2b30;color:#b7b5af;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px"></div>
   <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
-  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drillP}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div></div>
+  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drillP}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div>
+  <div id="fctbl" style="overflow-x:auto;margin-top:12px"></div></div>
 </div>
 ${covs.length ? `<h2>${T.covs}</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(lbl(k))} ${fmtV(k, CCY)} <span class="mut">${T.threshold} ${k.threshold}</span></span>`).join("")}</div>` : ""}
@@ -214,9 +229,10 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget }).replace(/</g, "\\u003c")};</script>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total }).replace(/</g, "\\u003c")};</script>
 <script>
-let FCON=false,CHD=null;const FT=window.__FT;
+let FCON=false,CHD=null;
+const fmtN=v=>{const a=Math.abs(v);return a>=1e6?(v/1e6).toFixed(2)+' M':a>=1e3?(v/1e3).toFixed(0)+' k':String(Math.round(v));};const FT=window.__FT;
 const FOPT=(typeof OPT!=='undefined')?OPT:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
 function fcpanel(){
   FCON=!FCON;const p=document.getElementById('fcp');
@@ -297,6 +313,23 @@ function fcdraw(){
       return {label:e,data:perSet.map(p=>byP[p]??null),backgroundColor:PAL[i%PAL.length],borderRadius:3,maxBarThickness:22};
     });
         if(CHD)CHD.destroy();
+    /* Table des valeurs du graphique : mêmes chiffres, lisibles et copiables
+       (demande fondateur) — total par période et par entité. */
+    (function(){
+      var t='<table style="width:100%;font-size:13.5px"><tr><th style="text-align:left">'+FT.entity+'</th>'+
+        perSet.map(function(p){return '<th class="r">'+p+'</th>';}).join('')+'<th class="r">'+FT.total+'</th></tr>';
+      var colTot=perSet.map(function(){return 0;});
+      dsEnt.forEach(function(d){
+        var rowTot=0;
+        t+='<tr><td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+d.backgroundColor+';margin-right:6px"></span>'+d.label+'</td>';
+        d.data.forEach(function(v,i){var n=v||0;rowTot+=n;colTot[i]+=n;t+='<td class="r">'+fmtN(n)+'</td>';});
+        t+='<td class="r" style="font-weight:600">'+fmtN(rowTot)+'</td></tr>';
+      });
+      t+='<tr style="border-top:1px solid #2c2b30"><td style="font-weight:600">'+FT.total+'</td>'+
+        colTot.map(function(v){return '<td class="r" style="font-weight:600">'+fmtN(v)+'</td>';}).join('')+
+        '<td class="r" style="font-weight:600">'+fmtN(colTot.reduce(function(a,b){return a+b;},0))+'</td></tr></table>';
+      document.getElementById('fctbl').innerHTML=t;
+    })();
     CHD=new Chart(document.getElementById('cd'),{type:'bar',data:{labels:perSet,datasets:dsEnt},
       options:{...FOPT,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{...FOPT.scales,x:{...FOPT.scales.x,stacked:true},y:{...FOPT.scales.y,stacked:true}}}});}
 }

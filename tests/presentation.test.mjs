@@ -257,3 +257,18 @@ test("page d'upload : la zone de dépôt est un bloc (un <label> inline provoqua
   assert.match(html, /\.drop \.big\{display:block/, "les libellés internes aussi");
   assert.match(html, /\.steps li\{flex:1 1 210px;display:flex/, "étapes en flux, hauteur garantie");
 });
+
+test("projection : table de valeurs sous le graphique + export PDF par impression", () => {
+  const fx = { horizon_months: 3,
+    global: { series: [{ period: "2026-01", collections: 5000 }], blocked: null },
+    by_entity: { A1: { series: [{ period: "2026-01", collections: 3000 }], blocked: null },
+                 A2: { series: [{ period: "2026-01", collections: 2000 }], blocked: null } },
+    by_bu: {}, methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_tp", { ...R, forecast: fx, report_version: "1.1",
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /id="fctbl"/, "emplacement de la table de valeurs");
+  assert.match(html, /const fmtN=/, "formatage des valeurs de la table");
+  assert.match(html, /window\.print\(\)/, "bouton PDF");
+  assert.match(html, /@media print\{/, "feuille d'impression");
+  assert.match(html, /#fcp\{display:block !important\}/, "le panneau forecast est déplié à l'impression");
+});

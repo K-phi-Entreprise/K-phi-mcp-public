@@ -188,6 +188,13 @@ app.all("/mcp", (_req, res) => {
    envoient ce lien à des personnes ; un clic navigateur doit aboutir à une
    interface, pas à une erreur. Ne consomme PAS le token — seul le PUT le
    fait ; un lien expiré s'exprime au PUT (410), affiché par la page. */
+/* État d'une analyse, pour la page d'upload : « en cours » → « prête ».
+   Lecture seule, pas de contenu — juste de quoi arrêter d'attendre. */
+app.get("/a/:id/status", async (req, res) => {
+  const rec = await store.get(req.params.id);
+  res.json(rec ? { status: rec.status } : { status: "not_found" });
+});
+
 app.get("/upload/:token", (_req, res) => {
   res.status(UPLOAD_ENABLED ? 200 : 501).type("html").send(uploadPageHtml());
 });

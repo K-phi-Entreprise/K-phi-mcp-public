@@ -275,10 +275,19 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "DSO/DPO observées du GL, fcBlocked verbatim), alerts, notes, detected.column_map. " +
         "L'analysis_url est l'artefact principal pour l'utilisateur : présentez-le avec votre restitution. " +
         "Erreurs typées : parse_error (format illisible), needs_input (paramètre manquant, corrigeable via " +
-        "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : l'agrégat groupe est une " +
-        "somme simple (sans élimination interco ni conversion FX — signalé dans notes[]) ; les vues PAR ENTITÉ du " +
-        "résultat (forecast.by_entity, méthodes DSO/DPO, basis) restent chacune en devise locale et sont fiables " +
-        "telles quelles — inutile de découper le fichier par entité. " +
+        "column_map), engine_error (indisponibilité côté serveur). " +
+        /* Cadrage conso (2026-08-27, fondateur) : la somme simple est la
+           limite de l'APERÇU sandbox, pas celle de K-Φ — la plateforme fait
+           la consolidation complète. Dire la limite ET le chemin. */
+        "Multi-entity files: this PREVIEW aggregates as a simple sum (no FX conversion, no intercompany " +
+        "elimination — flagged in notes[]); per-entity views (forecast.by_entity, DSO/DPO methods, basis) are " +
+        "each in local currency and reliable as-is. FULL consolidation — FX conversion at your rates, " +
+        "intercompany matching & elimination — is available in the K-Φ platform on this same tenant once the " +
+        "analysis is claimed (free 30 days). " +
+        "— Conso multi-entités : l'APERÇU agrège en somme simple (signalé dans notes[]) ; les vues par entité " +
+        "restent en devise locale, fiables telles quelles. La consolidation COMPLÈTE (conversion FX à vos taux, " +
+        "rapprochement et élimination intercos) est disponible dans la plateforme K-Φ sur ce même tenant, " +
+        "analyse réclamée (30 j gratuits). " +
         /* Faits privacy vérifiés dans routes/sandbox.js (round 3 du relais :
            « it hands the data to a third party ») : tenant isolé, purge
            définitive, résultat complet inline — le lien est ADDITIF. */

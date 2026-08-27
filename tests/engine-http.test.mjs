@@ -320,3 +320,13 @@ test("gen_fc_rules demandé au seed ; fc_rules>0 → note de provenance des règ
   assert.ok(r.notes.some(n => /Règles de flux générées automatiquement/.test(n) && /4 règles/.test(n)),
     "note de provenance présente avec le compte");
 });
+
+test("KPI par périmètre : mappés par la MÊME table que le groupe (clés inventées = tuiles figées)", async () => {
+  mockEngine();
+  const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  const k = r.forecast.by_entity.E1.kpi;
+  assert.ok(k, "les KPI de périmètre existent");
+  assert.equal(k.revenue, 150, "clé « Net Revenue » du moteur reconnue (et non un alias inventé)");
+  assert.equal(k.net_income, 150);
+  assert.equal(k.dso, 30, "ratios du périmètre inclus");
+});

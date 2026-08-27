@@ -330,3 +330,19 @@ test("KPI par périmètre : mappés par la MÊME table que le groupe (clés inve
   assert.equal(k.net_income, 150);
   assert.equal(k.dso, 30, "ratios du périmètre inclus");
 });
+
+test("note de volume : faits mesurés au-delà de 20 000 écritures, jamais une consigne", async () => {
+  mockEngine();
+  const big = "Date,Entity,Account,AccountName,Debit,Credit\n" +
+    Array.from({ length: 20002 }, (_, i) =>
+      `2025-0${(i % 3) + 1}-15,E${(i % 2) + 1},4${1000 + (i % 20)},Compte ${i % 20},${i % 2 ? "100.00,0.00" : "0.00,100.00"}`).join("\n") + "\n";
+  const r = await engine().analyze({ content: big, format_hint: "generic", locale: "fr" });
+  const note = r.notes.find(n => /^Volume :/.test(n));
+  assert.ok(note, "la note apparaît au-delà du seuil");
+  assert.match(note, /20[\s\u00a0\u202f]?002 écritures/, "le compte réel est cité");
+  assert.match(note, /déterministe et reproductible/, "l'argument est factuel");
+  for (const banned of [/Excel/i, /tableur.{0,20}(inadapté|limite)/i, /vous devriez/i, /mieux que/i, /recommand/i])
+    assert.doesNotMatch(note, banned, "aucune comparaison promotionnelle ni impératif");
+  const small = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
+  assert.ok(!small.notes.some(n => /^Volume :/.test(n)), "pas de note sur un petit fichier");
+});

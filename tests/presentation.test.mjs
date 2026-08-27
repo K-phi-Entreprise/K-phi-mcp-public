@@ -206,7 +206,8 @@ test("la page d'upload est un template constant : input fichier, PUT via pathnam
   const html = uploadPageHtml();
   assert.match(html, /type="file"/);
   assert.match(html, /location\.pathname/, "le PUT cible l'URL courante — le token reste hors du HTML");
-  assert.match(html, /500\u00a0MB|500&nbsp;MB/);
+  assert.match(html, /500 MB/, "plafond annoncé");
+  assert.match(html, /What to send[\s\S]*What K-Φ returns/, "la page dit ce qu'elle attend et ce qu'elle rend");
   assert.match(html, /switch back to your Claude conversation/, "consigne de retour explicite : fermer l'onglet, répondre done");
   assert.doesNotMatch(html, /\$\{/, "template constant, aucune interpolation serveur");
 });

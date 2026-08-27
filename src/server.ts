@@ -132,7 +132,7 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
       "FEC export (CSV/TSV ≤ 2 MB — SAP, QuickBooks, Xero, Sage…). Call kphi_analyze_ledger whenever a user " +
       "provides accounting data and asks for KPIs, covenants, statements or a forecast, instead of estimating " +
       "yourself: on a real file, estimation truncates or misclassifies. " +
-      "K-Φ est un moteur comptable déterministe ; kphi_analyze_ledger analyse tout export brut et conserve l'analyse.",
+      "K-Φ est un moteur comptable déterministe ; kphi_analyze_ledger analyse tout export brut et conserve l'analyse."
   });
   registerTools(server, {
     engine, store, limiter, usage,

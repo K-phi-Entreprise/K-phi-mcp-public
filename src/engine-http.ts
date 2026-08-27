@@ -133,7 +133,10 @@ export class KphiHttpEngine implements AnalysisEngine {
     const buScopes = [...new Set([...(parsed.bus ?? []), ...Object.keys(_posRa["_dsoByBU"] ?? {})])].slice(0, 6);
     const fcScope = async (p: { entity?: string; bu?: string }) => {
       try { const s = await this.statements(sb.token, { asOf: last, ...p, fc: true, horizon: 6 });
-            return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null }; }
+            /* Le moteur a tourné SUR le périmètre : ses kpi/ratios sont ceux du
+               périmètre. On les gardait à la poubelle — ils permettent de
+               rescoper tuiles et KPI sans aucune PR moteur (SPEC v1.2 ①). */
+            return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null, kpi: s.kpi, ratios: s.ratios }; }
       catch { return { fc: [], blocked: { reason: "scope_call_failed" } }; }
     };
     const [entFc, buFc] = await Promise.all([
@@ -388,9 +391,37 @@ function slimFc(rows: Array<Record<string, unknown>>): Array<Record<string, unkn
   return rows.map(r => { const o: Record<string, unknown> = {}; for (const k of FC_KEEP) if (k in r) o[k] = r[k]; return o; });
 }
 type WcMap = Record<string, { dso?: number; dpo?: number; _denomSource?: string; [k: string]: unknown }>;
+type ScopeFc = { fc: Array<Record<string, unknown>>; blocked: unknown;
+                 kpi?: Record<string, unknown>; ratios?: Record<string, unknown> | null };
+/** KPI d'un périmètre, réduits aux ids que le dashboard sait rendre. */
+const SCOPE_KPI_IDS: Array<[string, string[]]> = [
+  ["revenue", ["Net Revenue", "Revenue"]], ["gross_profit", ["Gross Profit"]],
+  ["ebitda", ["EBITDA"]], ["operating_income", ["Operating Income", "EBIT"]],
+  ["net_income", ["Net Income"]], ["cash", ["Cash"]],
+];
+function scopeKpis(s: ScopeFc): Record<string, number> | undefined {
+  const src = { ...(s.ratios ?? {}), ...(s.kpi ?? {}) } as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const [id, keys] of SCOPE_KPI_IDS) {
+    for (const k of keys) {
+      const v = src[k];
+      if (typeof v === "number" && isFinite(v)) { out[id] = v; break; }
+    }
+  }
+  if (typeof out.revenue === "number" && out.revenue !== 0) {
+    if (typeof out.ebitda === "number") out.ebitda_margin = (out.ebitda / out.revenue) * 100;
+    if (typeof out.net_income === "number") out.net_margin = (out.net_income / out.revenue) * 100;
+  }
+  const dso = (s.ratios as Record<string, unknown> | undefined)?.["dso"];
+  if (typeof dso === "number" && isFinite(dso)) out.dso = dso;
+  const dpo = (s.ratios as Record<string, unknown> | undefined)?.["dpo"];
+  if (typeof dpo === "number" && isFinite(dpo)) out.dpo = dpo;
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function buildForecast(position: { fc?: Array<Record<string, unknown>>; fcBlocked?: unknown; ratios?: Record<string, unknown> | null },
-                              ents: string[], entFc: Array<{ fc: Array<Record<string, unknown>>; blocked: unknown }>,
-                              bus: string[], buFc: Array<{ fc: Array<Record<string, unknown>>; blocked: unknown }>) {
+                              ents: string[], entFc: ScopeFc[],
+                              bus: string[], buFc: ScopeFc[]) {
   const ra = (position.ratios ?? {}) as Record<string, WcMap>;
   const meth = (m: WcMap | undefined, key: "dso" | "dpo") => {
     const out: Record<string, { value: number; source: string; basis?: number }> = {};
@@ -409,8 +440,8 @@ export function buildForecast(position: { fc?: Array<Record<string, unknown>>; f
   return {
     horizon_months: 6,
     global: { series: slimFc(position.fc ?? []), blocked: position.fcBlocked ?? null },
-    by_entity: Object.fromEntries(ents.map((e, i) => [e, { series: slimFc(entFc[i].fc), blocked: entFc[i].blocked }])),
-    by_bu: Object.fromEntries(bus.map((b, i) => [b, { series: slimFc(buFc[i].fc), blocked: buFc[i].blocked }])),
+    by_entity: Object.fromEntries(ents.map((e, i) => [e, { series: slimFc(entFc[i].fc), blocked: entFc[i].blocked, kpi: scopeKpis(entFc[i]) }])),
+    by_bu: Object.fromEntries(bus.map((b, i) => [b, { series: slimFc(buFc[i].fc), blocked: buFc[i].blocked, kpi: scopeKpis(buFc[i]) }])),
     methods: {
       dso_by_entity: meth(ra._dsoByEntity, "dso"), dpo_by_entity: meth(ra._dpoByEntity, "dpo"),
       dso_by_bu: meth(ra._dsoByBU, "dso"), dpo_by_bu: meth(ra._dpoByBU, "dpo"),

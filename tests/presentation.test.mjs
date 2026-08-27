@@ -285,8 +285,27 @@ test("drill : bascule Par entité / Par BU, libellés par nom de société", () 
     entity_names: { "1000": "Meridian France" },
     series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
   assert.match(html, /id="dE"[^>]*>By entity/, "bouton Par entité");
-  assert.match(html, /id="dB"[^>]*>By BU/, "bouton Par BU");
+  assert.match(html, /id="dB"[^>]*>By axis/, "bouton de bascule sur l'axe analytique");
   assert.match(html, /Meridian France/, "les noms de société sont injectés");
   assert.match(html, /const nm=c=>EN\[c\]/, "résolution code → nom");
   assert.match(html, /function ddim\(d\)/, "bascule de dimension");
+});
+
+test("axes : la liste des axes détectés est affichée ; une projection d'axe vide est EXPLIQUÉE", () => {
+  const fx = { horizon_months: 2,
+    global: { series: [{ period: "2026-01", collections: 100 }], blocked: null },
+    by_entity: { "1000": { series: [{ period: "2026-01", collections: 100 }], blocked: null } },
+    by_bu: { "PC-A": { series: [{ period: "2026-01", collections: 0 }], blocked: null } },
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_ax", { ...R, forecast: fx, report_version: "1.1",
+    analytic_axis: { label: "Profit center", column: "Profit Center" },
+    analytic_axes: [{ label: "Profit center", column: "Profit Center", coverage: 51, balance_sheet_coverage: 26 },
+                    { label: "Cost center", column: "Cost Center", coverage: 44 },
+                    { label: "Tax code", column: "Tax Code", coverage: 30 }],
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /Analytic axes found in this export/, "les axes disponibles sont listés");
+  assert.match(html, /Cost center[\s\S]{0,40}Cost Center/, "chaque axe avec sa colonne");
+  assert.match(html, /Tax code/, "y compris le code taxe du fichier SAP réel");
+  assert.match(html, /sliced by/, "l'axe utilisé est nommé");
+  assert.match(html, /carries no balance-sheet accounts/, "l'explication de la projection vide est embarquée");
 });

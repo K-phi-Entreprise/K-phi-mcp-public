@@ -137,3 +137,15 @@ for (const [name, content, opts] of [
     assert.ok(Math.abs(dr - cr) < 0.01, `équilibre DR/CR (${dr} vs ${cr})`);
   });
 }
+
+test("colonne devise non monétaire (taux de change) : ignorée à la source, jamais propagée aux écritures", async () => {
+  const csv = "Date,Account,AccountName,Debit,Credit,Currency\n" +
+    "2025-01-15,11000,Accounts Receivable,100.00,0.00,0.01\n" +
+    "2025-01-15,40000,Revenue,0.00,100.00,0.01\n";
+  const r = parseLedger(csv, "generic");
+  assert.equal(r.currency, "", "aucune devise inventée");
+  assert.ok(r.entries.every(e => !e.ccy), "les écritures partent sans devise fausse (l'app ne l'affichera pas)");
+  assert.ok(r.warnings.some(w => /Colonne devise ignorée/.test(w)), "l'ignorance est signalée");
+  const ok = parseLedger(csv.replace(/0\.01/g, "USD"), "generic");
+  assert.equal(ok.currency, "USD", "une vraie devise passe");
+});

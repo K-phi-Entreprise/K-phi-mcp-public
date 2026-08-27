@@ -629,12 +629,27 @@ function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_b
   return "unknown";
 }
 
+/* Une devise est un code ISO-3 ou un symbole — jamais un nombre. Vu en prod
+   sur un export SAP : une colonne de taux a été retenue comme colonne devise,
+   « 0.01 » est devenu la devise du dossier ET de chaque écriture importée,
+   jusque dans l'app (« 0.01 418,218 »). On filtre à LA SOURCE : les valeurs
+   non monétaires sont ignorées, l'écriture repart sans devise plutôt qu'avec
+   une fausse. */
+export const isCurrencyCode = (v: string): boolean =>
+  /^[A-Za-z]{3}$/.test(v.trim()) || /^[€$£¥₣]$/.test(v.trim());
+
 function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
                 warnings: string[], ccys: Map<string, number>,
                 coaDict: Record<string, string> = {}, docIdFrac = 0): ParseResult {
   if (!entries.length) throw new ParseError("Aucune écriture exploitable trouvée dans le fichier.");
   const periods = entries.map(e => e.period).filter(Boolean).sort();
-  const currency = [...ccys.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "EUR";
+  const badCcy = [...ccys.keys()].filter(c => !isCurrencyCode(c));
+  for (const b of badCcy) ccys.delete(b);
+  if (badCcy.length) {
+    warnings.push(`Colonne devise ignorée : valeurs non monétaires (ex. « ${badCcy[0]} ») — probablement une colonne de taux de change. Devise non renseignée plutôt qu'inventée.`);
+    for (const e of entries) if (e.ccy && !isCurrencyCode(e.ccy)) e.ccy = "";
+  }
+  const currency = [...ccys.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? (badCcy.length ? "" : "EUR");
   if (ccys.size > 1) warnings.push(`Plusieurs devises détectées (${[...ccys.keys()].join(", ")}) ; ${currency} retenue comme devise principale.`);
   const totDr = entries.reduce((a, e) => a + e.dr, 0), totCr = entries.reduce((a, e) => a + e.cr, 0);
   if (Math.abs(totDr - totCr) > Math.max(1, (totDr + totCr) * 0.001))

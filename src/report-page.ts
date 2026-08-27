@@ -81,7 +81,7 @@ const I18N = {
   en: { title: "Analysis", link24: "24 h link", open: "Open in K-Φ →", openLong: "Open the full analysis in K-Φ →",
         caveats: "Reading caveats", caveatConso: "Group = simple sum of entities, intercompany flows not eliminated.",
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
-        pdf: "Download PDF", total: "Total", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By BU", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -98,7 +98,7 @@ const I18N = {
   fr: { title: "Analyse", link24: "lien 24 h", open: "Ouvrir dans K-Φ →", openLong: "Ouvrir l'analyse détaillée dans K-Φ →",
         caveats: "Réserves de lecture", caveatConso: "Conso = somme simple des entités, flux intercos non éliminés.",
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
-        pdf: "Télécharger en PDF", total: "Total", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par BU", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -183,7 +183,11 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
   <div id="fcblocked" class="cav" style="display:none"></div>
   <div id="fcdoc" style="display:none;background:#1b1a1e;border:1px solid #2c2b30;color:#b7b5af;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px"></div>
   <div id="fcmeth" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:8px"></div>
-  <div id="fcdrill" style="display:none;margin-top:10px"><div class="mut" style="margin-bottom:6px">${T.drillP}</div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div>
+  <div id="fcdrill" style="display:none;margin-top:10px"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+    <span class="mut">${T.drillP}</span>
+    <span style="margin-left:auto"><button class="mbtn" id="dE" onclick="ddim('e')">${T.byEntity}</button>
+    <button class="mbtn" id="dB" onclick="ddim('b')">${T.byBU}</button></span>
+  </div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div>
   <div id="fctbl" style="overflow-x:auto;margin-top:12px"></div></div>
 </div>
 ${covs.length ? `<h2>${T.covs}</h2><div class="covrow">${covs.map(k =>
@@ -229,9 +233,14 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total }).replace(/</g, "\\u003c")};</script>
+<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: T.byBU }).replace(/</g, "\\u003c")};</script>
 <script>
-let FCON=false,CHD=null;
+let FCON=false,CHD=null,DDIM='e';
+function ddim(d){DDIM=d;fcdraw();}
+const EN=window.__EN||{};
+/* Un code de société ne dit rien à un lecteur : on affiche le nom quand
+   l'export le porte, le code sinon (demande fondateur). */
+const nm=c=>EN[c]?EN[c]+' ('+c+')':c;
 const fmtN=v=>{const a=Math.abs(v);return a>=1e6?(v/1e6).toFixed(2)+' M':a>=1e3?(v/1e3).toFixed(0)+' k':String(Math.round(v));};const FT=window.__FT;
 const FOPT=(typeof OPT!=='undefined')?OPT:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
 function fcpanel(){
@@ -245,10 +254,17 @@ function fcpanel(){
   if(FCON&&!document.getElementById('fcs').options.length){
     const sel=document.getElementById('fcs');
     sel.add(new Option(FT.global,'g:'));
-    for(const e of Object.keys(window.__FC.by_entity||{}))sel.add(new Option(FT.entity+' '+e,'e:'+e));
+    for(const e of Object.keys(window.__FC.by_entity||{}))sel.add(new Option(FT.entity+' '+nm(e),'e:'+e));
     for(const b of Object.keys(window.__FC.by_bu||{}))sel.add(new Option(FT.bu+' '+b,'b:'+b));
     /* défaut = Entité si une seule, sinon Global (critère 2 : entité par défaut quand elle a un sens) */
-    const ents=Object.keys(window.__FC.by_entity||{});
+    /* Dimension du drill : entités (défaut) ou BU — même graphique, même
+       table, source différente. Le bouton BU disparaît si l'export n'a pas
+       cet axe : jamais un sélecteur vide. */
+    const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
+    document.getElementById('dB').style.display=Object.keys(window.__FC.by_bu||{}).length?'':'none';
+    document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
+    document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
+    const ents=Object.keys(SRC);
     if(ents.length===1)sel.value='e:'+ents[0];
   }
   p.style.display=FCON?'block':'none';
@@ -273,7 +289,7 @@ function fcdraw(){
   if(dm&&dm[id]&&okD(dm[id].value))cards+=card(FT.recv,'DSO '+dm[id].value+' j ('+src(dm[id].source)+', '+id+')');
   if(pm&&pm[id]&&okD(pm[id].value))cards+=card(FT.pay,'DPO '+pm[id].value+' j ('+src(pm[id].source)+', '+id+')');
   if(kind==='g'){const es=Object.entries(m.dso_by_entity||{});
-    if(es.length)cards+=card(FT.recv,'DSO/entity: '+es.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));
+    if(es.length)cards+=card(FT.recv,'DSO/entity: '+es.filter(e=>okD(e[1].value)).map(([e,x])=>nm(e)+' '+x.value+' j').join(' · '));
     const ps=Object.entries(m.dpo_by_entity||{});
     if(ps.length)cards+=card(FT.pay,'DPO/entity: '+ps.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));}
   const rows=sc.series||[];
@@ -301,16 +317,23 @@ function fcdraw(){
   /* drill : réel FY + projeté par entité, côte à côte (critère 4) */
   const dr=document.getElementById('fcdrill');
   if(dr.style.display!=='none'){
-    const ents=Object.keys(window.__FC.by_entity||{});
+    /* Dimension du drill : entités (défaut) ou BU — même graphique, même
+       table, source différente. Le bouton BU disparaît si l'export n'a pas
+       cet axe : jamais un sélecteur vide. */
+    const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
+    document.getElementById('dB').style.display=Object.keys(window.__FC.by_bu||{}).length?'':'none';
+    document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
+    document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
+    const ents=Object.keys(SRC);
     /* X = PÉRIODES (demande fondateur) : une série par entité, valeurs =
        CA projeté si budget, sinon encaissements projetés — même règle que
        le graphique principal. */
-    const perSet=[];for(const e of ents)for(const x of (window.__FC.by_entity[e].series||[]))if(perSet.indexOf(x.period)<0)perSet.push(x.period);
+    const perSet=[];for(const e of ents)for(const x of (SRC[e].series||[]))if(perSet.indexOf(x.period)<0)perSet.push(x.period);
     perSet.sort();
     const PAL=['#2a78d6','#eb6834','#1baf7a','#eda100','#9b6cd6','#d03b3b','#28a3a3','#b7b5af'];
     const dsEnt=ents.map(function(e,i){
-      const byP={};for(const x of (window.__FC.by_entity[e].series||[]))byP[x.period]=(x.sales||x.collections||0);
-      return {label:e,data:perSet.map(p=>byP[p]??null),backgroundColor:PAL[i%PAL.length],borderRadius:3,maxBarThickness:22};
+      const byP={};for(const x of (SRC[e].series||[]))byP[x.period]=(x.sales||x.collections||0);
+      return {label:DDIM==='b'?e:nm(e),data:perSet.map(p=>byP[p]??null),backgroundColor:PAL[i%PAL.length],borderRadius:3,maxBarThickness:22};
     });
         if(CHD)CHD.destroy();
     /* Table des valeurs du graphique : mêmes chiffres, lisibles et copiables

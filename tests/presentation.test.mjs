@@ -272,3 +272,19 @@ test("projection : table de valeurs sous le graphique + export PDF par impressio
   assert.match(html, /@media print\{/, "feuille d'impression");
   assert.match(html, /#fcp\{display:block !important\}/, "le panneau forecast est déplié à l'impression");
 });
+
+test("drill : bascule Par entité / Par BU, libellés par nom de société", () => {
+  const fx = { horizon_months: 2,
+    global: { series: [{ period: "2026-01", collections: 9000 }], blocked: null },
+    by_entity: { "1000": { series: [{ period: "2026-01", collections: 6000 }], blocked: null } },
+    by_bu: { RETAIL: { series: [{ period: "2026-01", collections: 4000 }], blocked: null } },
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_bu", { ...R, forecast: fx, report_version: "1.1",
+    entity_names: { "1000": "Meridian France" },
+    series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
+  assert.match(html, /id="dE"[^>]*>By entity/, "bouton Par entité");
+  assert.match(html, /id="dB"[^>]*>By BU/, "bouton Par BU");
+  assert.match(html, /Meridian France/, "les noms de société sont injectés");
+  assert.match(html, /const nm=c=>EN\[c\]/, "résolution code → nom");
+  assert.match(html, /function ddim\(d\)/, "bascule de dimension");
+});

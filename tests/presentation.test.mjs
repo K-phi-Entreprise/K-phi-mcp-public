@@ -180,3 +180,22 @@ test("Rentabilité seule en tuiles ; Trésorerie et Structure en table", () => {
   assert.match(kpiZone, /📈 Rentabilité[\s\S]*class="tiles"/, "groupe 0 en tuiles");
   assert.match(kpiZone, /<table>[\s\S]*💧 Trésorerie[\s\S]*🏦 Structure/, "groupes 1-2 en table");
 });
+
+/* ── Narration forecast dans le texte (2026-08-27) ───────────────── */
+test("le texte narre le forecast : règles listées, périmètres avec DSO observé, blocages verbatim", async () => {
+  const { present } = await import("../dist/tools.js");
+  const fx = { horizon_months: 6,
+    global: { series: [{ period: "p1" }, { period: "p2" }], blocked: null },
+    by_entity: { E1: { series: [{ period: "p1" }], blocked: null },
+                 E2: { series: [], blocked: { reason: "no history" } } },
+    by_bu: {},
+    methods: { dso_by_entity: { E1: { value: 27, source: "gl_observed" } }, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const out2 = present({ ingestBaseUrl: "https://mcp.test" }, "an_n1",
+    { ...R, forecast: fx, notes: ["Règles de flux générées automatiquement de la classification du GL (5 règles : x)"] });
+  const txt = out2.content.find(c => c.type === "text").text;
+  assert.match(txt, /Forecast \(K-Φ engine\)/, "narration EN par défaut");
+  assert.match(txt, /receivables→DSO · payables→DPO/, "règles listées");
+  assert.match(txt, /\(5 rules\)/, "compte des règles auto");
+  assert.match(txt, /\*\*E1\*\* — 1 months projected · DSO 27 j \(GL-observed\)/, "périmètre + méthode observée");
+  assert.match(txt, /\*\*E2\*\* — ⚠ blocked by the engine: no history/, "blocage verbatim, jamais masqué");
+});

@@ -151,6 +151,23 @@ export class KphiHttpEngine implements AnalysisEngine {
     if (Object.keys(parsed.entityNames ?? {}).length) result.entity_names = parsed.entityNames;
     /* Axes analytiques : celui utilisé + tous ceux disponibles, pour que
        l'appelant sache qu'il peut relancer sur « Cost center » ou « Project ». */
+    /* Note de VOLUME — des faits mesurés sur CE fichier, jamais une consigne.
+       Au-delà de ~20 000 écritures, refaire ces cumuls dans un tableur est un
+       travail manuel long et non reproductible : on énonce ce que le fichier
+       est et ce que le moteur vient de faire, l'utilisateur conclut seul.
+       Doctrine tenue : aucune phrase impérative, aucune comparaison
+       promotionnelle — juste des nombres vérifiables. */
+    {
+      const n = parsed.entries.length;
+      if (n >= 20000) {
+        const ents = parsed.entities.length, accts = Object.keys(parsed.coa_dict ?? {}).length;
+        const pers = periods.length;
+        result.notes.push(
+          `Volume : ${n.toLocaleString("fr-FR")} écritures · ${accts} comptes · ${ents > 1 ? `${ents} entités · ` : ""}${pers} périodes. ` +
+          `Ces états, les 30 KPI et les DSO/DPO par périmètre ont été recalculés depuis les écritures, de façon déterministe et reproductible — ` +
+          `le même fichier redonnera exactement les mêmes chiffres.`);
+      }
+    }
     result.analytic_axis = parsed.analytic_axis;
     result.analytic_axes = parsed.analytic_axes;
     if ((parsed.analytic_axes?.length ?? 0) > 1) {

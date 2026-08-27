@@ -83,7 +83,7 @@ const I18N = {
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
-        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", runout: "Collections stop after month {n}: the receivables present in your ledger have all been collected by then, and without a budget the engine creates no new sales — so there is nothing left to collect. Load a budget in K-Φ to continue the projection beyond that point.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "Analytic axis", allEnt: "All entities", allAx: "All values",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -102,7 +102,7 @@ const I18N = {
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
-        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", runout: "Les encaissements s'arrêtent après le mois {n} : les créances présentes dans votre grand livre ont alors toutes été encaissées, et sans budget le moteur ne crée aucune vente nouvelle — il n'y a donc plus rien à encaisser. Chargez un budget dans K-Φ pour prolonger la projection.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "Axe analytique", allEnt: "Toutes entités", allAx: "Toutes valeurs",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -200,7 +200,8 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
     <span style="margin-left:auto"><button class="mbtn" id="dE" onclick="ddim('e')">${T.byEntity}</button>
     <button class="mbtn" id="dB" onclick="ddim('b')">${T.byBU}</button></span>
   </div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div>
-  <div id="fctbl" style="overflow-x:auto;margin-top:12px"></div></div>
+  <div id="fctbl" style="overflow-x:auto;margin-top:12px"></div>
+  <div id="fcrunout" style="display:none;margin-top:10px;border:1px solid #2c2b30;border-radius:10px;padding:10px 14px;color:#b7b5af;font-size:13px"></div></div>
 </div>
 ${covs.length ? `<h2>${T.covs}</h2><div class="covrow">${covs.map(k =>
   `<span class="cov">${k.status === "ok" ? "✅" : "⛔"} ${esc(lbl(k))} ${fmtV(k, CCY)} <span class="mut">${T.threshold} ${k.threshold}</span></span>`).join("")}</div>` : ""}
@@ -245,7 +246,7 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx }).replace(/</g, "\\u003c")};</script>
+<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,DDIM='e';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
@@ -320,7 +321,13 @@ function fcpanel(){
        table, source différente. Le bouton BU disparaît si l'export n'a pas
        cet axe : jamais un sélecteur vide. */
     const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
-    document.getElementById('dB').style.display=Object.keys(window.__FC.by_bu||{}).length?'':'none';
+    /* Un axe posé sur le seul P&L ne produit AUCUN flux de trésorerie : le
+       bouton « par axe » n'a alors rien à montrer — on le retire au lieu de
+       proposer une vue vide (retour fondateur : « remove By axis, it is KO »). */
+    var _bu=window.__FC.by_bu||{};
+    var _axCash=Object.keys(_bu).some(function(k){return (_bu[k].series||[]).some(function(x){return (x.sales||x.collections||0)!==0;});});
+    document.getElementById('dB').style.display=_axCash?'':'none';
+    if(!_axCash&&DDIM==='b')DDIM='e';
     document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
     document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
     const ents=Object.keys(SRC);
@@ -380,7 +387,13 @@ function fcdraw(){
        table, source différente. Le bouton BU disparaît si l'export n'a pas
        cet axe : jamais un sélecteur vide. */
     const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
-    document.getElementById('dB').style.display=Object.keys(window.__FC.by_bu||{}).length?'':'none';
+    /* Un axe posé sur le seul P&L ne produit AUCUN flux de trésorerie : le
+       bouton « par axe » n'a alors rien à montrer — on le retire au lieu de
+       proposer une vue vide (retour fondateur : « remove By axis, it is KO »). */
+    var _bu=window.__FC.by_bu||{};
+    var _axCash=Object.keys(_bu).some(function(k){return (_bu[k].series||[]).some(function(x){return (x.sales||x.collections||0)!==0;});});
+    document.getElementById('dB').style.display=_axCash?'':'none';
+    if(!_axCash&&DDIM==='b')DDIM='e';
     document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
     document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
     const ents=Object.keys(SRC);
@@ -415,6 +428,17 @@ function fcdraw(){
          banque). Sans eux, il n'y a aucun flux à dérouler. On l'explique au
          lieu d'afficher une grille de zéros. */
       var anyVal=dsEnt.some(function(d){return d.data.some(function(v){return (v||0)!==0;});});
+      /* Zéros de fin de série : les créances EXISTANTES ont fini d'être
+         encaissées (DSO ~1-2 mois) et, sans budget, aucune vente nouvelle
+         n'en crée d'autres. Le dire, sinon la table paraît cassée. */
+      var lastNZ=-1;
+      for(var ci=0;ci<perSet.length;ci++){var s=0;dsEnt.forEach(function(d){s+=Math.abs(d.data[ci]||0);});if(s>0)lastNZ=ci;}
+      var runout=document.getElementById('fcrunout');
+      if(runout){
+        var show=lastNZ>=0&&lastNZ<perSet.length-1;
+        runout.style.display=show?'block':'none';
+        if(show)runout.textContent='ℹ '+FT.runout.replace('{n}',String(lastNZ+1));
+      }
       document.getElementById('fctbl').innerHTML=anyVal?t:
         '<div style="border:1px solid #2c2b30;border-radius:10px;padding:14px;color:#b7b5af;font-size:13.5px">'+
         FT.axisNoCash+'</div>';

@@ -44,7 +44,18 @@ h1{font-size:30px;margin:0;letter-spacing:-.5px}
 .bar b{display:block;height:12px;width:0;background:#e8e03c;transition:width .15s}
 .btn{margin-top:22px;width:100%;padding:17px;border:0;border-radius:12px;background:#e8e03c;color:#141317;font-size:17px;font-weight:700;cursor:pointer}
 .btn:disabled{opacity:.35;cursor:default}
-.ok{color:#1baf7a;font-weight:600}.err{color:#d03b3b}
+.ok{color:#1baf7a;font-weight:600}
+/* Attente : barre indéterminée + étapes réelles. Pas de fausse progression
+   en pourcentage — le serveur ne renvoie pas d'avancement, inventer une
+   jauge qui monte serait mentir sur ce qu'on sait. */
+.ind{height:8px;background:#2c2b30;border-radius:4px;overflow:hidden;margin:16px 0 12px;position:relative}
+.ind:after{content:"";position:absolute;left:-40%;width:40%;height:100%;background:#e8e03c;border-radius:4px;animation:sl 1.15s ease-in-out infinite}
+@keyframes sl{0%{left:-40%}100%{left:100%}}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid #2c2b30;border-top-color:#e8e03c;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.phase{color:#898781;font-size:14px;margin-top:2px}
+.phase b{color:#e8e6e1;font-weight:500}
+@media(prefers-reduced-motion:reduce){.ind:after,.spin{animation:none}.ind:after{left:0;width:100%;opacity:.4}}.err{color:#d03b3b}
 #msg{margin-top:22px;font-size:16px}
 .done-box{background:#18171b;border:1px solid #4a6b46;border-radius:16px;padding:26px;margin-top:22px}
 .done-box .h{font-size:20px;margin-bottom:10px}
@@ -107,7 +118,23 @@ go.addEventListener('click',function(){
       dz.style.display='none';go.style.display='none';bar.style.display='none';
       var id='';try{id=JSON.parse(x.responseText).analysis_id||'';}catch(_){}
       msg.innerHTML='<div class="done-box" id="db"><div class="h"><span class="ok">✅ File received by K-Φ.</span></div>'+
-        '<div id="wait">Analyzing your ledger… this usually takes a few seconds.</div></div>';
+        '<div id="wait"><div class="ind"></div>'+
+        '<div><span class="spin"></span><b id="ph">Reading and mapping your columns…</b></div>'+
+        '<div class="phase" id="phsub">Large exports take a little longer — this page updates by itself. '+
+        '<span lang="fr">Cette page se met à jour toute seule.</span></div></div></div>';
+      /* Étapes réelles du moteur, dans l'ordre où elles se produisent : le
+         texte suit le temps écoulé, il ne prétend pas connaître un
+         pourcentage que le serveur ne fournit pas. */
+      var PH=[[0,'Reading and mapping your columns…'],[4,'Classifying accounts and building statements…'],
+              [10,'Computing KPIs and covenants…'],[18,'Projecting cash flows per entity…'],
+              [30,'Almost there — finalising your dashboard…']];
+      var t0=Date.now();
+      var phTimer=setInterval(function(){
+        var el=document.getElementById('ph');if(!el){clearInterval(phTimer);return;}
+        var s=(Date.now()-t0)/1000,lab=PH[0][1];
+        for(var i=0;i<PH.length;i++)if(s>=PH[i][0])lab=PH[i][1];
+        el.textContent=lab;
+      },1000);
       /* On ne renvoie plus l'utilisateur au chat pour SAVOIR : la page suit
          l'analyse et ouvre le dashboard dès qu'il existe. Le retour au chat
          sert alors à ramener les chiffres dans la conversation, pas à
@@ -118,14 +145,14 @@ go.addEventListener('click',function(){
           tries++;
           fetch('/a/'+id+'/status').then(function(r){return r.json();}).then(function(j){
             if(j.status==='ready'){
-              clearInterval(poll);
+              clearInterval(poll);clearInterval(phTimer);
               document.getElementById('wait').innerHTML=
                 '<b>Your dashboard is ready.</b><br><br>'+
                 '<a class="btn" style="display:block;text-align:center;text-decoration:none;padding:15px" href="/a/'+id+'">Open the K-Φ dashboard →</a>'+
                 '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in Claude.</div>'+
                 '<div class="sub" lang="fr" style="margin-top:12px">Tableau de bord prêt. Pour ramener les chiffres dans la conversation, répondez <kbd>done</kbd> dans Claude.</div>';
             } else if(j.status==='error'||tries>40){
-              clearInterval(poll);
+              clearInterval(poll);clearInterval(phTimer);
               document.getElementById('wait').innerHTML=
                 'Upload complete. Reply <kbd>done</kbd> in your Claude conversation to get the analysis.'+
                 '<div class="sub" lang="fr" style="margin-top:10px">Fichier reçu : répondez <kbd>done</kbd> dans Claude.</div>';

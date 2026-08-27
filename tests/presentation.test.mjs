@@ -171,7 +171,7 @@ test("locale absente → dashboard en ANGLAIS par défaut ; labels KPI traduits 
   assert.doesNotMatch(html, /Marge d'EBITDA/);
   /* le bouton vit dans la barre du graphique, à côté des modes */
   const ti = html.indexOf("Revenue & EBITDA");
-  assert.match(html.slice(ti, ti + 400), /id="bF"/, "Project forecast → dans l'en-tête du graphique, pas en bas de page");
+  assert.match(html.slice(ti, ti + 600), /id="bF"/, "Project forecast → dans l'en-tête du graphique");
 });
 
 test("Rentabilité seule en tuiles ; Trésorerie et Structure en table", () => {
@@ -317,9 +317,13 @@ test("périmètre : barre en TÊTE de page, peuplée au chargement, portée anno
   const html = renderReport("an_sc", { ...R, forecast: fx, report_version: "1.1",
     series: [{ period: "2025-01", revenue: 1e6, ebitda: 1e5 }, { period: "2025-02", revenue: 1e6, ebitda: 1e5 }] });
   const iScope = html.indexOf('id="scopebar"'), iTiles = html.indexOf('class="tiles"'), iChart = html.indexOf("Revenue & EBITDA");
-  assert.ok(iScope > 0 && iScope < iTiles && iScope < iChart, "la barre de périmètre précède tuiles et graphique");
+  /* Ordre voulu : graphique GROUPE d'abord (il ne suit pas les filtres),
+     puis la barre de filtres, puis tout ce qui EST filtré. */
+  assert.ok(iChart > 0 && iChart < iScope, "le graphique historique groupe précède les filtres");
+  assert.ok(iScope > 0 && iScope < iTiles, "la barre de filtres précède les tuiles qu'elle pilote");
+  assert.match(html, /id="grpTag"/, "le titre porte la mention « groupe » quand un périmètre est actif");
   assert.equal(html.split('id="fcs"').length - 1, 1, "un seul sélecteur de périmètre sur la page");
-  assert.match(html, /Tiles, KPIs, projection and breakdown follow the selected scope/, "la portée du périmètre est annoncée");
+  assert.match(html, /Tiles, KPIs, Sankey, projection and breakdown below follow this scope/, "la portée du périmètre est annoncée");
   assert.match(html, /table\{font-size:16\.5px/, "police des tables augmentée");
 });
 

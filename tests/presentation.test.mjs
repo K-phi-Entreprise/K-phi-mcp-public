@@ -399,7 +399,7 @@ test("Sankey du compte de résultat + décomposition par ligne de flux (défaut)
   assert.match(html, /"revenue":145000000/, "les KPI groupe alimentent le Sankey");
   assert.match(html, /Cost of sales[\s\S]*Gross profit[\s\S]*Operating expenses/, "étapes du compte de résultat");
   assert.match(html, /id="dL"[^>]*>By flow line/, "bouton par ligne de flux");
-  assert.match(html, /let FCON=false,CHD=null,DDIM='l'/, "les lignes de flux sont le défaut, l'entité une option");
+  assert.match(html, /DDIM='l'/, "les lignes de flux sont le défaut, l'entité une option");
   assert.match(html, /Customer collections[\s\S]*Supplier payments[\s\S]*Payroll/, "postes de flux nommés");
 });
 
@@ -413,7 +413,22 @@ test("Sankey : géométrie bornée (viewBox + hauteur fixe), libellés au-dessus
   assert.match(html, /H=Math\.max\(220,_bx\)/, "la hauteur suit la boîte réelle, jamais une constante");
   assert.match(html, /\.chartbox\{[^}]*overflow:hidden/, "la boîte borne son contenu");
   assert.match(html, /preserveAspectRatio="xMidYMid meet"/, "le SVG s'inscrit dans sa boîte");
-  assert.match(html, /id="sk"[^>]*overflow:hidden/, "conteneur borné — plus de débordement sur les covenants");
+  assert.match(html, /\.chartbox\{[^}]*overflow:hidden/, "la boîte borne son contenu — plus de débordement sur les covenants");
   assert.match(html, /y="'\+\(y-12\)\+'"/, "libellé posé AU-DESSUS du nœud");
   assert.match(html, /usable=H-TOP-BOT/, "hauteur utile calculée, pas d'échelle libre");
+});
+
+test("deux graphiques distincts : mensuel GROUPE en haut, structure SCOPÉE sous les filtres", () => {
+  const fx = { horizon_months: 2, global: { series: [{ period: "2026-07", collections: 10 }], blocked: null },
+    by_entity: { E1: { series: [], blocked: null, kpi: { revenue: 5e6, ebitda: 1e6 } } }, by_bu: {},
+    methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_split2", { ...R, forecast: fx, report_version: "1.1",
+    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 145e6 }, { id: "ebitda", label: "E", unit: "EUR", value: 23e6 }],
+    series: [{ period: "2026-01", revenue: 2e7, ebitda: 3e6 }, { period: "2026-02", revenue: 2e7, ebitda: 3e6 }] });
+  const iTop = html.indexOf("Revenue & EBITDA"), iBar = html.indexOf('id="scopebar"'), iScoped = html.indexOf('id="bW"');
+  assert.ok(iTop > 0 && iTop < iBar, "l'historique mensuel groupe est au-dessus des filtres");
+  assert.ok(iScoped > iBar, "Waterfall et Sankey sont SOUS les filtres");
+  assert.equal(html.slice(iTop, iBar).includes('id="bS"'), false, "aucun mode scopé dans le bloc du haut");
+  assert.match(html, /function draw2\(\)/, "le bloc scopé a son propre rendu");
+  assert.match(html, /Result structure — follows the scope/, "titre explicite du bloc scopé");
 });

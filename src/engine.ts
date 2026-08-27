@@ -62,8 +62,8 @@ export interface AnalysisResult {
   forecast?: {
     horizon_months: number;
     global: { series: Array<Record<string, unknown>>; blocked: unknown };
-    by_entity: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown }>;
-    by_bu: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown }>;
+    by_entity: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown; kpi?: Record<string, number> }>;
+    by_bu: Record<string, { series: Array<Record<string, unknown>>; blocked: unknown; kpi?: Record<string, number> }>;
     methods: Record<string, Record<string, { value: number; source: string }>>;
   };
   report_version?: string;

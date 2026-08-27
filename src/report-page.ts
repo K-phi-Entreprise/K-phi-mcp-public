@@ -83,7 +83,7 @@ const I18N = {
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
-        scopeNote: "Scope applies to the projection, working-capital methods and breakdown below. Actual tiles and KPIs remain group-level in this preview.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -102,7 +102,7 @@ const I18N = {
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
-        scopeNote: "Le périmètre s'applique à la projection, aux méthodes BFR et à la décomposition ci-dessous. Les tuiles et KPI réels restent au niveau groupe dans cet aperçu.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -210,11 +210,11 @@ ${(() => {
   const tiles0 = rows0.length ? `<div style="color:#b7b5af;font-weight:600;margin:14px 0 8px">${T.sections[0]}</div>
   <div class="tiles" style="margin:0 0 4px">${rows0.map(k =>
     `<div class="tile"><div class="l">${esc(lbl(k))}</div>
-     <div class="v" style="color:${color(k)}">${fmtV(k, CCY)}${trendArrow(k.id, series)}</div>
+     <div class="v" data-kpi="${k.id}" data-unit="${k.unit === "%" ? "%" : k.unit === "days" ? "d" : "m"}" style="color:${color(k)}">${fmtV(k, CCY)}${trendArrow(k.id, series)}</div>
      <div style="margin-top:5px">${gauge(k)} <span class="r mut" style="font-size:11px">${refCell(k, r.locale)}</span></div></div>`).join("")}</div>` : "";
   const grouped = new Set(GROUPS.flatMap(g => g[1]));
   const rest = r.kpis.filter(k => !grouped.has(k.id));
-  const row = (k: Kpi) => `<tr><td>${esc(lbl(k))}</td><td class="r" style="color:${color(k)};font-weight:600">${fmtV(k, CCY)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k, r.locale)}</td></tr>`;
+  const row = (k: Kpi) => `<tr><td>${esc(lbl(k))}</td><td class="r" data-kpi="${k.id}" data-unit="${k.unit === "%" ? "%" : k.unit === "days" ? "d" : "m"}" style="color:${color(k)};font-weight:600">${fmtV(k, CCY)}</td><td class="r">${gauge(k)}</td><td class="r mut">${refCell(k, r.locale)}</td></tr>`;
   const tbl = GROUPS.slice(1).map(([, ids], gi) => {
     const rows = ids.map(id => byId.get(id)).filter((k): k is Kpi => !!k);
     return rows.length ? `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">${T.sections[gi + 1]}</td></tr>` + rows.map(row).join("") : "";
@@ -243,16 +243,46 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote }).replace(/</g, "\\u003c")};</script>
+<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,DDIM='e';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
    périmètre (projection, méthodes DSO/DPO, décomposition). Les agrégats réels
    restent groupe tant que le moteur n'expose pas ses séries par périmètre —
    dit dans la barre plutôt que laissé deviner. */
+/* Valeurs de groupe mémorisées au chargement : revenir sur « Global » doit
+   restaurer EXACTEMENT ce que le moteur a calculé pour le groupe. */
+var GROUPVALS=null;
+function snapGroup(){
+  if(GROUPVALS)return;GROUPVALS={};
+  document.querySelectorAll('[data-kpi]').forEach(function(el,i){GROUPVALS[i]=el.innerHTML;});
+}
+function fmtKpi(v,unit){
+  if(unit==='%')return v.toFixed(1)+' %';
+  if(unit==='d')return Math.round(v)+' j';
+  var a=Math.abs(v);
+  return (a>=1e6?(v/1e6).toFixed(2)+' M':a>=1e3?(v/1e3).toFixed(0)+' k':String(Math.round(v)))+(window.__CCY?' '+window.__CCY:'');
+}
+/* Le périmètre pilote la page (SPEC v1.2 ①) : les KPI du périmètre viennent
+   du MOTEUR — l'appel scopé a fait tourner runEngine sur ses seules lignes.
+   Un KPI que le périmètre ne porte pas s'affiche « — », jamais la valeur
+   groupe déguisée. */
+function applyScopeKpis(){
+  snapGroup();
+  var v=document.getElementById('fcs').value||'g:';var parts=v.split(':');
+  var sc=parts[0]==='e'?(window.__FC.by_entity||{})[parts[1]]:parts[0]==='b'?(window.__FC.by_bu||{})[parts[1]]:null;
+  var k=sc&&sc.kpi;
+  document.querySelectorAll('[data-kpi]').forEach(function(el,i){
+    if(!k){el.innerHTML=GROUPVALS[i];el.style.opacity='';return;}
+    var id=el.getAttribute('data-kpi'),unit=el.getAttribute('data-unit');
+    if(k[id]!==undefined){el.textContent=fmtKpi(k[id],unit);el.style.opacity='';}
+    else{el.textContent='—';el.style.opacity='.45';el.title=FT.notInScope;}
+  });
+}
 function scopeChanged(){
   var v=document.getElementById('fcs').value||'g:';
   document.getElementById('scopenote').textContent=(v==='g:')?'':FT.scopeNote;
+  applyScopeKpis();
   if(!FCON)fcpanel(); else fcdraw();
 }
 function ddim(d){DDIM=d;fcdraw();}

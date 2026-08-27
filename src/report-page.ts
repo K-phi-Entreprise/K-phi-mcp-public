@@ -84,7 +84,7 @@ const I18N = {
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
         notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
-        hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "BU",
+        hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "Analytic axis", allEnt: "All entities", allAx: "All values",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
         sections: ["📈 Profitability", "💧 Cash & cycle", "🏦 Structure & debt"], other: "Other",
@@ -103,7 +103,7 @@ const I18N = {
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
         notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
-        hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "BU",
+        hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "Axe analytique", allEnt: "Toutes entités", allAx: "Toutes valeurs",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
         sections: ["📈 Rentabilité", "💧 Trésorerie & cycle", "🏦 Structure & dette"], other: "Autres",
@@ -175,8 +175,10 @@ h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 <button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
 ${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#18171b;border:1px solid #2c2b30;border-radius:12px;padding:12px 16px;margin:14px 0">
-  <span style="font-weight:600">${T.scope}</span>
-  <select id="fcs" onchange="scopeChanged()" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:8px 12px;font-size:15px"></select>
+  <span style="font-weight:600">${T.entity}</span>
+  <select id="fcs" onchange="scopeChanged('e')" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:8px 12px;font-size:15px"></select>
+  <span style="font-weight:600" id="axlbl">${esc(r.analytic_axis?.label ?? T.bu)}</span>
+  <select id="fcax" onchange="scopeChanged('b')" style="background:#1b1a1e;color:#e8e6e1;border:1px solid #2c2b30;border-radius:8px;padding:8px 12px;font-size:15px"></select>
   <span class="mut" id="scopenote" style="font-size:12.5px"></span>
 </div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
@@ -243,7 +245,7 @@ function draw(){if(CH)CH.destroy();
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope }).replace(/</g, "\\u003c")};</script>
+<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,DDIM='e';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
@@ -267,9 +269,9 @@ function fmtKpi(v,unit){
    du MOTEUR — l'appel scopé a fait tourner runEngine sur ses seules lignes.
    Un KPI que le périmètre ne porte pas s'affiche « — », jamais la valeur
    groupe déguisée. */
-function applyScopeKpis(){
+function applyScopeKpis(v){
   snapGroup();
-  var v=document.getElementById('fcs').value||'g:';var parts=v.split(':');
+  v=v||window.__SCOPE||'g:';var parts=v.split(':');
   var sc=parts[0]==='e'?(window.__FC.by_entity||{})[parts[1]]:parts[0]==='b'?(window.__FC.by_bu||{})[parts[1]]:null;
   var k=sc&&sc.kpi;
   document.querySelectorAll('[data-kpi]').forEach(function(el,i){
@@ -279,10 +281,18 @@ function applyScopeKpis(){
     else{el.textContent='—';el.style.opacity='.45';el.title=FT.notInScope;}
   });
 }
-function scopeChanged(){
-  var v=document.getElementById('fcs').value||'g:';
+/* Deux champs, un seul périmètre actif : le moteur scope par entité OU par
+   valeur d'axe, pas encore les deux à la fois (croisement = SPEC v1.2 ②).
+   Choisir dans un champ remet l'autre à « tous » — plutôt que d'afficher un
+   croisement que personne n'a calculé. */
+function scopeChanged(which){
+  var se=document.getElementById('fcs'),sa=document.getElementById('fcax');
+  if(which==='e'&&se.value!=='g:'&&sa)sa.value='g:';
+  if(which==='b'&&sa&&sa.value!=='g:')se.value='g:';
+  var v=(sa&&sa.value&&sa.value!=='g:')?sa.value:(se.value||'g:');
+  window.__SCOPE=v;
   document.getElementById('scopenote').textContent=(v==='g:')?'':FT.scopeNote;
-  applyScopeKpis();
+  applyScopeKpis(v);
   if(!FCON)fcpanel(); else fcdraw();
 }
 function ddim(d){DDIM=d;fcdraw();}
@@ -320,10 +330,10 @@ function fcpanel(){
   document.getElementById('fcdrill').style.display=(FCON&&Object.keys(window.__FC.by_entity||{}).length>1)?'block':'none';
   if(FCON){fcdraw();}else if(typeof draw==='function'){draw();}
 }
-function fcscope(){const v=document.getElementById('fcs').value||'g:';const[k,id]=v.split(':');
+function fcscope(){const v=window.__SCOPE||'g:';const[k,id]=v.split(':');
   return k==='e'?window.__FC.by_entity[id]:k==='b'?window.__FC.by_bu[id]:window.__FC.global;}
 function fcdraw(){
-  const sc=fcscope(),v=document.getElementById('fcs').value||'g:',[kind,id]=v.split(':');
+  const sc=fcscope(),v=window.__SCOPE||'g:',[kind,id]=v.split(':');
   const blk=document.getElementById('fcblocked');
   if(sc.blocked){blk.style.display='block';blk.textContent='⚠ '+FT.blocked+(sc.blocked.reason||JSON.stringify(sc.blocked));}
   else blk.style.display='none';
@@ -416,7 +426,15 @@ function fcdraw(){
 
 /* Périmètres peuplés dès le chargement : la barre est utilisable sans
    ouvrir le panneau (le périmètre pilote la page). */
-try{if(window.__FC){var _s=document.getElementById('fcs');if(_s&&!_s.options.length){_s.add(new Option(FT.global,'g:'));for(const e of Object.keys(window.__FC.by_entity||{}))_s.add(new Option(FT.entity+' '+nm(e),'e:'+e));for(const b of Object.keys(window.__FC.by_bu||{}))_s.add(new Option(FT.bu+' '+b,'b:'+b));}}}catch(e){}
+try{if(window.__FC){
+  var _s=document.getElementById('fcs');
+  if(_s&&!_s.options.length){_s.add(new Option(FT.allEnt,'g:'));for(const e of Object.keys(window.__FC.by_entity||{}))_s.add(new Option(nm(e),'e:'+e));}
+  var _a=document.getElementById('fcax'),_bu=Object.keys(window.__FC.by_bu||{});
+  if(_a&&!_a.options.length){
+    if(!_bu.length){_a.style.display='none';var _l=document.getElementById('axlbl');if(_l)_l.style.display='none';}
+    else{_a.add(new Option(FT.allAx,'g:'));for(const b of _bu)_a.add(new Option(b,'b:'+b));}
+  }
+}}catch(e){}
 </script>
 </div></body></html>`;
 }

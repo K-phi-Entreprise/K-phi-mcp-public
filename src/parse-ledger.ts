@@ -45,6 +45,8 @@ export interface LedgerEntry {
 export interface ParseOpts {
   /** Date de clôture YYYY-MM-DD — dernier échelon de résolution des dates. */
   periodEnd?: string;
+  /** Axe analytique sur lequel découper (libellé « Cost center » ou nom de colonne). */
+  analyticAxis?: string;
   /** Plan de mapping fourni par l'APPELANT : { champ: en-tête }. Le modèle
    *  qui appelle l'outil lit n'importe quel en-tête dans n'importe quelle
    *  langue — c'est la voie agnostique quand l'inférence se trompe. Les
@@ -58,8 +60,12 @@ export interface ParseResult {
   format: "fec" | "csv";
   entries: LedgerEntry[];
   entities: string[];
-  /** Business units présentes dans l'export (axe de scope pour le forecast). */
+  /** Valeurs de l'axe analytique retenu (périmètres de scope pour le forecast). */
   bus: string[];
+  /** Tous les axes analytiques détectés dans l'export (l'utilisateur peut basculer). */
+  analytic_axes: Array<{ label: string; column: string }>;
+  /** Axe effectivement utilisé pour découper cette analyse. */
+  analytic_axis?: { label: string; column: string };
   /** code entité → nom lisible, quand l'export porte les deux. */
   entityNames: Record<string, string>;
   currency: string;
@@ -292,13 +298,14 @@ const SYN: Record<string, string[]> = {
   dc_ind: ["shkzg", "sens", "dcind", "debitcreditind", "debitcreditindicator", "debitcredit", "dcflag", "sh", "dc"],
   /* Intacct : LOCATIONID = ENTITÉ, pas un lieu (piège documenté). */
   entity: ["entite", "entité", "entity", "societe", "société", "company", "companycode", "bukrs", "rbukrs", "dataareaid", "subsidiary", "locationid", "site", "fcy", "legalentity", "dossier"],
-  /* Axe BU — multilingue et multi-ERP : segment SAP (PRCTR/centre de profit),
-     division, département, branche, activité, business unit. Sans lui, le
-     moteur ne peut pas produire de vue par BU (demande fondateur). */
-  bu: ["bu", "businessunit", "business_unit", "uniteoperationnelle", "unitéoperationnelle", "division",
-       "segment", "departement", "département", "department", "prctr", "profitcenter", "centredeprofit",
-       "gsber", "businessarea", "domaineactivite", "branche", "branch", "activite", "activité", "secteur",
-       "costcenter", "kostl", "centredecout", "centredecoût", "dimension1", "class", "classe"],
+  /* Axe analytique — « BU » n'est qu'un cas parmi d'autres (fondateur) :
+     centre de coût, centre de profit, projet, produit, canal, région… Toutes
+     les familles ci-dessous sont des AXES CANDIDATS ; l'export en porte
+     souvent plusieurs, l'utilisateur choisit lequel découpe l'analyse
+     (paramètre analytic_axis), sinon on prend le premier trouvé dans cet
+     ordre de priorité. La liste est de la donnée : ajouter un ERP = ajouter
+     des alias, jamais du code. */
+  bu: [],
   /* Nom lisible de l'entité, quand l'export le porte à côté du code. */
   ename: ["entityname", "companyname", "nomsociete", "nomsociété", "raisonsociale", "butxt", "name1",
           "companytext", "societename", "libelleentite", "libellésociété", "legalentityname", "subsidiaryname"],
@@ -402,6 +409,12 @@ function mapHeaders(header: string[], skip: Set<number> = new Set()): Partial<Re
 
 function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpts = {}): ParseResult {
   const entityNames: Record<string, string> = {};
+  /* Axes analytiques : on repère TOUTES les colonnes candidates, on expose la
+     liste, et on découpe sur celle demandée (analytic_axis) ou la première par
+     ordre de priorité. Un export SAP porte souvent PRCTR + KOSTL + projet :
+     l'utilisateur doit pouvoir basculer sans qu'on choisisse à sa place. */
+  const axesFound: Array<{ label: string; header: string; idx: number }> = [];
+  let chosenAxis: { label: string; header: string; idx: number } | null = null;
   const header = splitLine(lines[0], delim);
   const normH = header.map(normHeader);
   const warnings: string[] = [];
@@ -413,6 +426,25 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     warnings.push(`Colonnes ignorées (pièges connus : soldes cumulés, contreparties, montants TTC/taxe) : ${[...skip].map(i => header[i]).join(", ")}.`);
 
   const m = mapHeaders(header, skip);
+  /* Axes analytiques disponibles : colonnes non déjà mappées qui matchent une
+     famille connue. On garde l'ordre de priorité de ANALYTIC_AXES. */
+  {
+    const taken = new Set(Object.values(m) as number[]);
+    for (const [label, aliases] of ANALYTIC_AXES) {
+      const idx = header.findIndex((h, i) => !taken.has(i) && !skip.has(i) &&
+        aliases.some(a => normH[i] === a || (a.length >= 5 && normH[i].includes(a))));
+      if (idx >= 0 && !axesFound.some(x => x.idx === idx)) axesFound.push({ label, header: header[idx], idx });
+    }
+    /* Axe retenu : celui demandé (par libellé OU par nom de colonne), sinon le
+       premier par priorité. Il alimente le champ `bu` transmis au moteur —
+       seul slot analytique générique côté scoping. */
+    const want = opts.analyticAxis?.toLowerCase().trim();
+    const chosen = want
+      ? axesFound.find(a => a.label.toLowerCase() === want || normHeader(a.header) === normHeader(want))
+      : axesFound[0];
+    if (chosen) { m.bu = chosen.idx; taken.add(chosen.idx); }
+    chosenAxis = chosen ?? null;
+  }
   /* ── Overrides de l'appelant : priment sur l'inférence ── */
   let overridesApplied = 0;
   let forcedMode: "dual" | "signed" | "signed_inv" | "single" | undefined;
@@ -623,6 +655,8 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const res = finish("csv", entries, dropped, warnings, ccys, coaDict,
     entries.length ? docIdRows / entries.length : 0);
   res.entityNames = entityNames;
+  res.analytic_axes = axesFound.map(a => ({ label: a.label, column: a.header }));
+  res.analytic_axis = chosenAxis ? { label: chosenAxis.label, column: chosenAxis.header } : undefined;
   res.column_map = columnMap;
   res.unmapped_headers = unmapped;
   res.name_source = nameSource;
@@ -658,6 +692,20 @@ function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_b
    jusque dans l'app (« 0.01 418,218 »). On filtre à LA SOURCE : les valeurs
    non monétaires sont ignorées, l'écriture repart sans devise plutôt qu'avec
    une fausse. */
+/** Familles d'axes analytiques, par ordre de priorité. Chaque entrée :
+ *  [libellé lisible, alias d'en-tête normalisés]. */
+export const ANALYTIC_AXES: Array<[string, string[]]> = [
+  ["Business unit", ["bu", "businessunit", "business_unit", "uniteoperationnelle", "unitéopérationnelle", "division", "segment", "branche", "branch"]],
+  ["Profit center", ["prctr", "profitcenter", "profit_center", "centredeprofit", "centre_de_profit"]],
+  ["Cost center", ["costcenter", "cost_center", "kostl", "centredecout", "centredecoût", "centre_de_cout", "sectionanalytique"]],
+  ["Project", ["projet", "project", "projectcode", "projectid", "aufnr", "wbs", "chantier", "affaire", "job", "jobcode"]],
+  ["Department", ["departement", "département", "department", "service", "gsber", "businessarea", "domaineactivite"]],
+  ["Product line", ["produit", "product", "productline", "gamme", "famille", "matkl", "itemgroup"]],
+  ["Channel", ["canal", "channel", "vkorg", "salesorg", "salesorganization", "circuit"]],
+  ["Region", ["region", "région", "zone", "territoire", "territory", "market", "pays", "country", "werks", "plant", "site2"]],
+  ["Analytic axis", ["analytique", "analytic", "dimension1", "dim1", "axe", "axeanalytique", "class", "classe", "tag", "categorie", "catégorie"]],
+];
+
 export const isCurrencyCode = (v: string): boolean =>
   /^[A-Za-z]{3}$/.test(v.trim()) || /^[€$£¥₣]$/.test(v.trim());
 
@@ -682,6 +730,7 @@ function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
     bus: [...new Set(entries.map(e => e.bu))].filter((b): b is string => !!b),
     entityNames: {},
+    analytic_axes: [],
     currency, period_from: periods[0] ?? "", period_to: periods[periods.length - 1] ?? "",
     dropped, warnings, genre: detectGenre(entries, docIdFrac), coa_dict: coaDict,
     column_map: {}, unmapped_headers: [], overrides_applied: 0,

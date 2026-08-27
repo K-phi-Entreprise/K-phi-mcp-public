@@ -162,3 +162,22 @@ test("colonnes BU et nom de société : captées (axe BU + libellés lisibles)",
   assert.equal(r.entityNames["2000"], "Meridian GmbH");
   assert.ok(r.entries.every(e => e.bu), "chaque écriture porte sa BU (transmise au moteur)");
 });
+
+test("axes analytiques : tous détectés, priorité respectée, choix possible", () => {
+  const csv = "Date,Company Code,Profit Center,Cost Center,Project,Account,AccountName,Debit,Credit\n" +
+    "2025-01-15,1000,PC-A,CC-1,PRJ-X,411000,Clients,100.00,0.00\n" +
+    "2025-01-15,1000,PC-A,CC-1,PRJ-X,701000,Ventes,0.00,100.00\n" +
+    "2025-02-15,1000,PC-B,CC-2,PRJ-Y,411000,Clients,60.00,0.00\n" +
+    "2025-02-15,1000,PC-B,CC-2,PRJ-Y,701000,Ventes,0.00,60.00\n";
+  const r = parseLedger(csv, "generic");
+  const labels = r.analytic_axes.map(a => a.label);
+  assert.ok(labels.includes("Profit center") && labels.includes("Cost center") && labels.includes("Project"),
+    "les trois axes du fichier sont exposés");
+  assert.equal(r.analytic_axis.label, "Profit center", "priorité respectée par défaut");
+  assert.deepEqual(r.bus.sort(), ["PC-A", "PC-B"]);
+  const byProject = parseLedger(csv, "generic", { analyticAxis: "Project" });
+  assert.equal(byProject.analytic_axis.label, "Project", "l'axe demandé est retenu");
+  assert.deepEqual(byProject.bus.sort(), ["PRJ-X", "PRJ-Y"], "le découpage suit l'axe choisi");
+  const byColumn = parseLedger(csv, "generic", { analyticAxis: "Cost Center" });
+  assert.deepEqual(byColumn.bus.sort(), ["CC-1", "CC-2"], "choix par nom de colonne accepté");
+});

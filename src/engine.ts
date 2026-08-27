@@ -22,6 +22,7 @@ export interface AnalyzeInput {
    *  Prime sur l'inférence, champ par champ. */
   column_map?: Record<string, string>;            // CSV/TSV brut
   format_hint: FormatHint;
+  analytic_axis?: string;
   period_end?: string;
   covenants?: Covenant[];
   locale: string;
@@ -68,6 +69,9 @@ export interface AnalysisResult {
   report_version?: string;
   /** code entité → nom lisible (quand l'export porte les deux). */
   entity_names?: Record<string, string>;
+  /** Axe analytique utilisé pour ce découpage, et tous ceux disponibles. */
+  analytic_axis?: { label: string; column: string };
+  analytic_axes?: Array<{ label: string; column: string }>;
   /** Langue de rendu du dashboard — "en" par défaut, "fr" si demandé (2026-08-27). */
   locale?: "en" | "fr";
   /** Série mensuelle (revenue/EBITDA) pour le dashboard — additive, absente sur les moteurs mock/antérieurs. */

@@ -338,6 +338,11 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),
       period_end: z.string().optional().describe("Date de clôture YYYY-MM-DD si connue."),
+      analytic_axis: z.string().optional().describe(
+        "Axe analytique sur lequel découper l'analyse et le forecast : « Business unit », " +
+        "« Cost center », « Profit center », « Project », « Department », « Product line », " +
+        "« Channel », « Region » — ou le nom exact de la colonne. Par défaut, le premier axe " +
+        "trouvé. Les axes disponibles dans le fichier sont renvoyés dans analytic_axes."),
       covenants: z.array(covenant).optional().describe("Covenants bancaires à vérifier."),
       locale: z.string().default("fr").describe("Langue de restitution : fr, en, hu, de…"),
     },
@@ -388,6 +393,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     inputSchema: {
       format_hint: formatHint.default("auto"),
       period_end: z.string().optional(),
+      analytic_axis: z.string().optional(),
       covenants: z.array(covenant).optional(),
       locale: z.string().default("fr"),
     },

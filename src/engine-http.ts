@@ -61,6 +61,7 @@ export class KphiHttpEngine implements AnalysisEngine {
        maintenant l'échelle de résolution des dates (voir parse-ledger.ts). */
     const parsed = parseLedger(input.content, undefined, {
       periodEnd: input.period_end,
+      analyticAxis: input.analytic_axis,
       columnMap: input.column_map as never,
     });
     const cap = this.cfg.maxSandboxEntries ?? Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000);
@@ -145,6 +146,14 @@ export class KphiHttpEngine implements AnalysisEngine {
     /* Noms lisibles : le dashboard affiche « 1000 — Meridian France » plutôt
        qu'un code nu, quand l'export porte les deux colonnes. */
     if (Object.keys(parsed.entityNames ?? {}).length) result.entity_names = parsed.entityNames;
+    /* Axes analytiques : celui utilisé + tous ceux disponibles, pour que
+       l'appelant sache qu'il peut relancer sur « Cost center » ou « Project ». */
+    result.analytic_axis = parsed.analytic_axis;
+    result.analytic_axes = parsed.analytic_axes;
+    if ((parsed.analytic_axes?.length ?? 0) > 1) {
+      const others = parsed.analytic_axes.filter(a => a.column !== parsed.analytic_axis?.column).map(a => a.label);
+      result.notes.push(`Axe analytique utilisé : ${parsed.analytic_axis?.label} (colonne « ${parsed.analytic_axis?.column} »). Autres axes détectés dans cet export : ${others.join(", ")} — relancez avec analytic_axis="<axe>" pour découper dessus.`);
+    }
     result.report_version = "1.1";
     result.locale = input.locale === "fr" ? "fr" : "en";
     if (fcRulesSeeded > 0)

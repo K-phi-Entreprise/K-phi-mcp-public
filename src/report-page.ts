@@ -83,7 +83,7 @@ const I18N = {
         caveatCcy: "Multiple currencies detected", caveatTail: "The forecast and ratios inherit these limits.",
         pdf: "Download PDF", total: "Total", byEntity: "By entity", byBU: "By axis",
         axesFound: "Analytic axes found in this export:", axisUsed: "sliced by", axisSwitch: "Ask your assistant to re-run with another axis (analytic_axis) to slice on it.",
-        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", runout: "Collections stop after month {n}: the receivables present in your ledger have all been collected by then, and without a budget the engine creates no new sales — so there is nothing left to collect. Load a budget in K-Φ to continue the projection beyond that point.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", project: "Project forecast →",
+        notInScope: "Not computable on this scope from the ledger", scopeNote: "Tiles, KPIs, projection and breakdown follow the selected scope. The historical chart stays group-level in this preview.", runout: "Collections stop after month {n}: the receivables present in your ledger have all been collected by then, and without a budget the engine creates no new sales — so there is nothing left to collect. Load a budget in K-Φ to continue the projection beyond that point.", axisNoCash: "This axis carries no balance-sheet accounts (receivables, payables, cash) in your export — it is posted on P&L lines only. There is therefore no cash flow to unwind per value of this axis: the cash projection stays at zero. The P&L itself can still be analysed along this axis in K-Φ.", chart: "Revenue & EBITDA", monthly: "Monthly", waterfall: "Waterfall", sankey: "Sankey flow", sankeyNA: "Income-statement flows need revenue and margins — not available on this scope.", skRev: "Revenue", skCogs: "Cost of sales", skGp: "Gross profit", skOpex: "Operating expenses", skEbitda: "EBITDA", skBelow: "D&A, interest, tax", skNi: "Net income", byLine: "By flow line", flCollect: "Customer collections", flPay: "Supplier payments", flPayroll: "Payroll", flOpex: "Operating expenses", flTax: "Taxes", flInt: "Interest", project: "Project forecast →",
         hide: "Hide projection", scope: "Scope", global: "Global", entity: "Entity", bu: "Analytic axis", allEnt: "All entities", allAx: "All values",
         horizon: "K-Φ engine projection · horizon", months: "months",
         alerts: "Attention points", covs: "Covenants", kpi: "KPI", value: "Value", ref: "Reference", gauge: "Gauge",
@@ -102,7 +102,7 @@ const I18N = {
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
         pdf: "Télécharger en PDF", total: "Total", byEntity: "Par entité", byBU: "Par axe",
         axesFound: "Axes analytiques détectés dans cet export :", axisUsed: "découpage sur", axisSwitch: "Demandez à votre assistant de relancer avec un autre axe (analytic_axis).",
-        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", runout: "Les encaissements s'arrêtent après le mois {n} : les créances présentes dans votre grand livre ont alors toutes été encaissées, et sans budget le moteur ne crée aucune vente nouvelle — il n'y a donc plus rien à encaisser. Chargez un budget dans K-Φ pour prolonger la projection.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", project: "Projeter →",
+        notInScope: "Non calculable sur ce périmètre à partir du grand livre", scopeNote: "Tuiles, KPI, projection et décomposition suivent le périmètre. Le graphique historique reste groupe dans cet aperçu.", runout: "Les encaissements s'arrêtent après le mois {n} : les créances présentes dans votre grand livre ont alors toutes été encaissées, et sans budget le moteur ne crée aucune vente nouvelle — il n'y a donc plus rien à encaisser. Chargez un budget dans K-Φ pour prolonger la projection.", axisNoCash: "Cet axe ne porte pas les comptes de bilan (créances, dettes, banque) dans votre export : il n'est renseigné que sur les lignes de résultat. Il n'y a donc aucun flux de trésorerie à dérouler par valeur de cet axe — la projection reste à zéro. Le compte de résultat, lui, reste analysable selon cet axe dans K-Φ.", chart: "Chiffre d'affaires & EBITDA", monthly: "Mensuel", waterfall: "Waterfall", sankey: "Flux (Sankey)", sankeyNA: "Les flux du compte de résultat exigent le CA et les marges — indisponibles sur ce périmètre.", skRev: "Chiffre d'affaires", skCogs: "Coût des ventes", skGp: "Marge brute", skOpex: "Charges d'exploitation", skEbitda: "EBITDA", skBelow: "D&A, intérêts, impôt", skNi: "Résultat net", byLine: "Par ligne de flux", flCollect: "Encaissements clients", flPay: "Règlements fournisseurs", flPayroll: "Paie", flOpex: "Charges d'exploitation", flTax: "Impôts", flInt: "Intérêts", project: "Projeter →",
         hide: "Masquer la projection", scope: "Périmètre", global: "Global", entity: "Entité", bu: "Axe analytique", allEnt: "Toutes entités", allAx: "Toutes valeurs",
         horizon: "projection moteur K-Φ · horizon", months: "mois",
         alerts: "Points d'attention", covs: "Covenants", kpi: "KPI", value: "Valeur", ref: "Référence", gauge: "Jauge",
@@ -183,8 +183,8 @@ ${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:cent
 </div>` : ""}
 <div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}
-<span>${series.length > 1 ? `<button class="mbtn" id="bM" onclick="cmode('M')">${T.monthly}</button> <button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> ` : ""}<button class="mbtn" id="bF" style="border-color:#898781" onclick="fcpanel()">${T.project}</button></span></h2>
-${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : ""}
+<span>${series.length > 1 ? `<button class="mbtn" id="bM" onclick="cmode('M')">${T.monthly}</button> <button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> <button class="mbtn" id="bS" onclick="cmode('S')">${T.sankey}</button> ` : ""}<button class="mbtn" id="bF" style="border-color:#898781" onclick="fcpanel()">${T.project}</button></span></h2>
+${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas><div id="sk" style="display:none"></div></div>` : ""}
 <div id="fcp" style="display:none;margin-top:8px">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <span class="mut" style="margin-left:auto">${T.horizon} ${(r.forecast?.horizon_months ?? 6)} ${T.months}</span>
@@ -197,7 +197,8 @@ ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : "
   }${r.analytic_axis ? ` — ${T.axisUsed} <b>${esc(r.analytic_axis.label)}</b>. ${T.axisSwitch}` : ""}</div>` : ""}
   <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
     <span class="mut">${T.drillP}</span>
-    <span style="margin-left:auto"><button class="mbtn" id="dE" onclick="ddim('e')">${T.byEntity}</button>
+    <span style="margin-left:auto"><button class="mbtn" id="dL" onclick="ddim('l')">${T.byLine}</button>
+    <button class="mbtn" id="dE" onclick="ddim('e')">${T.byEntity}</button>
     <button class="mbtn" id="dB" onclick="ddim('b')">${T.byBU}</button></span>
   </div><div style="position:relative;height:210px"><canvas id="cd"></canvas></div>
   <div id="fctbl" style="overflow-x:auto;margin-top:12px"></div>
@@ -237,18 +238,75 @@ const S=${JSON.stringify(series)};let CM='M',CH;
 const FYr=S.reduce((a,s)=>a+(s.revenue||0),0),FYe=S.reduce((a,s)=>a+(s.ebitda||0),0);
 const OPT={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b7b5af',boxWidth:10}}},scales:{x:{ticks:{color:'#898781'},grid:{display:false}},y:{ticks:{color:'#898781'},grid:{color:'#232227'}}}};
 function cmode(m){CM=m;draw();}
-function draw(){if(CH)CH.destroy();
- document.getElementById('bM').style.borderColor=CM==='M'?'#898781':'#2c2b30';
- document.getElementById('bW').style.borderColor=CM==='W'?'#898781':'#2c2b30';
+/* Sankey du compte de résultat — reprend la lecture en flux de K-Φ :
+   CA → (COGS) → marge brute → (charges d'exploitation) → EBITDA → (D&A,
+   intérêts, impôt) → résultat net. Construit des KPI DÉJÀ calculés par le
+   moteur, donc il suit le périmètre sélectionné comme les tuiles.
+   SVG inline : aucune dépendance, imprimable dans le PDF. */
+function kpiOf(id){
+  var v=(window.__SCOPE&&window.__SCOPE!=='g:')?null:undefined;
+  var parts=(window.__SCOPE||'g:').split(':');
+  if(parts[0]==='e'||parts[0]==='b'){
+    var sc=parts[0]==='e'?(window.__FC.by_entity||{})[parts[1]]:(window.__FC.by_bu||{})[parts[1]];
+    return sc&&sc.kpi&&sc.kpi[id]!==undefined?sc.kpi[id]:null;
+  }
+  var el=document.querySelector('[data-kpi="'+id+'"]');
+  return el&&window.__KPIG&&window.__KPIG[id]!==undefined?window.__KPIG[id]:null;
+}
+function drawSankey(){
+  var box=document.getElementById('sk');if(!box)return;
+  var rev=kpiOf('revenue'),gp=kpiOf('gross_profit'),eb=kpiOf('ebitda'),ni=kpiOf('net_income');
+  if(rev===null||rev===0){box.innerHTML='<div class="mut" style="padding:20px">'+FT.sankeyNA+'</div>';return;}
+  var W=980,H=300,PAD=14,x0=8,colW=150,gap=(W-2*x0-3*colW)/3;
+  var cogs=(gp!==null)?rev-gp:null, opex=(gp!==null&&eb!==null)?gp-eb:null, below=(eb!==null&&ni!==null)?eb-ni:null;
+  var sc=(H-3*PAD)/Math.max(rev,1);
+  var h=function(v){return Math.max(2,Math.abs(v||0)*sc);};
+  var G='#1baf7a',Rd='#d03b3b',B='#2a78d6',O='#eb6834';
+  function band(x,y,w,hh,c,op){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+hh+'" fill="'+c+'" opacity="'+(op||1)+'" rx="3"/>';}
+  function flow(x1,y1,x2,y2,hh,c){var mx=(x1+x2)/2;
+    return '<path d="M'+x1+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+x2+','+y2+' L'+x2+','+(y2+hh)+' C'+mx+','+(y2+hh)+' '+mx+','+(y1+hh)+' '+x1+','+(y1+hh)+' Z" fill="'+c+'" opacity="0.28"/>';}
+  function lab(x,y,t,v,c){return '<text x="'+x+'" y="'+y+'" fill="'+(c||'#b7b5af')+'" font-size="12">'+t+'</text>'+
+    '<text x="'+x+'" y="'+(y+15)+'" fill="#e8e6e1" font-size="13" font-weight="600">'+fmtN(v)+'</text>';}
+  var s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px">';
+  var y=PAD;
+  s+=band(x0,y,16,h(rev),B)+lab(x0+22,y+14,FT.skRev,rev,B);
+  var x1=x0+colW+gap;
+  if(cogs!==null){
+    s+=flow(x0+16,y,x1,y,h(cogs),Rd)+band(x1,y,16,h(cogs),Rd)+lab(x1+22,y+14,FT.skCogs,-cogs,Rd);
+    var yg=y+h(cogs)+6;
+    s+=flow(x0+16,yg,x1,yg,h(gp),G)+band(x1,yg,16,h(gp),G)+lab(x1+22,yg+14,FT.skGp,gp,G);
+    var x2=x1+colW+gap;
+    if(opex!==null){
+      s+=flow(x1+16,yg,x2,yg,h(opex),O)+band(x2,yg,16,h(opex),O)+lab(x2+22,yg+14,FT.skOpex,-opex,O);
+      var ye=yg+h(opex)+6;
+      s+=flow(x1+16,ye,x2,ye,h(eb),eb>=0?G:Rd)+band(x2,ye,16,h(eb),eb>=0?G:Rd)+lab(x2+22,ye+14,FT.skEbitda,eb,eb>=0?G:Rd);
+      var x3=x2+colW+gap;
+      if(below!==null){
+        s+=flow(x2+16,ye,x3,ye,h(below),Rd)+band(x3,ye,16,h(below),Rd)+lab(x3+22,ye+14,FT.skBelow,-below,Rd);
+        var yn=ye+h(below)+6;
+        s+=flow(x2+16,yn,x3,yn,h(ni),ni>=0?G:Rd)+band(x3,yn,16,h(ni),ni>=0?G:Rd)+lab(x3+22,yn+14,FT.skNi,ni,ni>=0?G:Rd);
+      }
+    }
+  }
+  s+='</svg>';box.innerHTML=s;
+}
+function draw(){
+ var _sk=document.getElementById('sk'),_cv=document.getElementById('c');
+ if(_sk&&_cv){_sk.style.display=(CM==='S')?'block':'none';_cv.style.display=(CM==='S')?'none':'block';}
+ if(CM==='S'){if(CH){CH.destroy();CH=null;}drawSankey();
+   for(const b of ['bM','bW','bS'])if(document.getElementById(b))document.getElementById(b).style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';
+   return;}
+ if(CH)CH.destroy();
+ for(const b of ['bM','bW','bS']){var _e=document.getElementById(b);if(_e)_e.style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';}
  CH=CM==='M'?new Chart(document.getElementById('c'),{data:{labels:S.map(s=>s.period),datasets:[
   {type:'bar',label:'CA',data:S.map(s=>s.revenue??null),backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},
   {type:'line',label:'EBITDA',data:S.map(s=>s.ebitda??null),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}]},options:OPT})
  :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
 draw();</script>` : ""}
 
-<script>window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout }).replace(/</g, "\\u003c")};</script>
+<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, sankeyNA: T.sankeyNA, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>
-let FCON=false,CHD=null,DDIM='e';
+let FCON=false,CHD=null,DDIM='l';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
    périmètre (projection, méthodes DSO/DPO, décomposition). Les agrégats réels
    restent groupe tant que le moteur n'expose pas ses séries par périmètre —
@@ -320,17 +378,31 @@ function fcpanel(){
     /* Dimension du drill : entités (défaut) ou BU — même graphique, même
        table, source différente. Le bouton BU disparaît si l'export n'a pas
        cet axe : jamais un sélecteur vide. */
-    const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
+    var _gs=(fcscope().series)||[];
+    /* En mode « ligne de flux », la source est la série du PÉRIMÈTRE courant,
+       décomposée par poste ; sinon ce sont les périmètres eux-mêmes. */
+    const SRC=(DDIM==='l')?null:((DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{}));
     /* Un axe posé sur le seul P&L ne produit AUCUN flux de trésorerie : le
        bouton « par axe » n'a alors rien à montrer — on le retire au lieu de
        proposer une vue vide (retour fondateur : « remove By axis, it is KO »). */
+    /* Lignes de flux du forecast — les postes que FC_PROJ produit réellement :
+       encaissements clients, règlements fournisseurs, paie, charges
+       d'exploitation, impôts, intérêts. C'est la lecture « par section »
+       demandée ; la vue par entité reste disponible, mais n'est plus le
+       défaut. (Capex et résultat financier détaillé viendront quand le
+       moteur les exposera dans les lignes de projection.) */
+    var FLOWS=[['collections',FT.flCollect,'#2a78d6',1],['payments',FT.flPay,'#eb6834',-1],
+               ['payroll',FT.flPayroll,'#eda100',-1],['opex',FT.flOpex,'#9b6cd6',-1],
+               ['tax',FT.flTax,'#d03b3b',-1],['interest',FT.flInt,'#28a3a3',-1]];
     var _bu=window.__FC.by_bu||{};
     var _axCash=Object.keys(_bu).some(function(k){return (_bu[k].series||[]).some(function(x){return (x.sales||x.collections||0)!==0;});});
     document.getElementById('dB').style.display=_axCash?'':'none';
-    if(!_axCash&&DDIM==='b')DDIM='e';
+    for(const b of ['dL','dE','dB']){var _b=document.getElementById(b);
+      if(_b)_b.style.borderColor=(b==='dL'&&DDIM==='l')||(b==='dE'&&DDIM==='e')||(b==='dB'&&DDIM==='b')?'#898781':'#2c2b30';}
+    if(!_axCash&&DDIM==='b')DDIM='l';
     document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
     document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
-    const ents=Object.keys(SRC);
+    const ents=SRC?Object.keys(SRC):[];
     if(ents.length===1)sel.value='e:'+ents[0];
   }
   p.style.display=FCON?'block':'none';
@@ -386,24 +458,46 @@ function fcdraw(){
     /* Dimension du drill : entités (défaut) ou BU — même graphique, même
        table, source différente. Le bouton BU disparaît si l'export n'a pas
        cet axe : jamais un sélecteur vide. */
-    const SRC=(DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{});
+    var _gs=(fcscope().series)||[];
+    /* En mode « ligne de flux », la source est la série du PÉRIMÈTRE courant,
+       décomposée par poste ; sinon ce sont les périmètres eux-mêmes. */
+    const SRC=(DDIM==='l')?null:((DDIM==='b')?(window.__FC.by_bu||{}):(window.__FC.by_entity||{}));
     /* Un axe posé sur le seul P&L ne produit AUCUN flux de trésorerie : le
        bouton « par axe » n'a alors rien à montrer — on le retire au lieu de
        proposer une vue vide (retour fondateur : « remove By axis, it is KO »). */
+    /* Lignes de flux du forecast — les postes que FC_PROJ produit réellement :
+       encaissements clients, règlements fournisseurs, paie, charges
+       d'exploitation, impôts, intérêts. C'est la lecture « par section »
+       demandée ; la vue par entité reste disponible, mais n'est plus le
+       défaut. (Capex et résultat financier détaillé viendront quand le
+       moteur les exposera dans les lignes de projection.) */
+    var FLOWS=[['collections',FT.flCollect,'#2a78d6',1],['payments',FT.flPay,'#eb6834',-1],
+               ['payroll',FT.flPayroll,'#eda100',-1],['opex',FT.flOpex,'#9b6cd6',-1],
+               ['tax',FT.flTax,'#d03b3b',-1],['interest',FT.flInt,'#28a3a3',-1]];
     var _bu=window.__FC.by_bu||{};
     var _axCash=Object.keys(_bu).some(function(k){return (_bu[k].series||[]).some(function(x){return (x.sales||x.collections||0)!==0;});});
     document.getElementById('dB').style.display=_axCash?'':'none';
-    if(!_axCash&&DDIM==='b')DDIM='e';
+    for(const b of ['dL','dE','dB']){var _b=document.getElementById(b);
+      if(_b)_b.style.borderColor=(b==='dL'&&DDIM==='l')||(b==='dE'&&DDIM==='e')||(b==='dB'&&DDIM==='b')?'#898781':'#2c2b30';}
+    if(!_axCash&&DDIM==='b')DDIM='l';
     document.getElementById('dE').style.borderColor=DDIM==='e'?'#898781':'#2c2b30';
     document.getElementById('dB').style.borderColor=DDIM==='b'?'#898781':'#2c2b30';
-    const ents=Object.keys(SRC);
+    const ents=SRC?Object.keys(SRC):[];
     /* X = PÉRIODES (demande fondateur) : une série par entité, valeurs =
        CA projeté si budget, sinon encaissements projetés — même règle que
        le graphique principal. */
-    const perSet=[];for(const e of ents)for(const x of (SRC[e].series||[]))if(perSet.indexOf(x.period)<0)perSet.push(x.period);
+    const perSet=[];
+    if(DDIM==='l'){for(const x of _gs)if(perSet.indexOf(x.period)<0)perSet.push(x.period);}
+    else for(const e of ents)for(const x of (SRC[e].series||[]))if(perSet.indexOf(x.period)<0)perSet.push(x.period);
     perSet.sort();
     const PAL=['#2a78d6','#eb6834','#1baf7a','#eda100','#9b6cd6','#d03b3b','#28a3a3','#b7b5af'];
-    const dsEnt=ents.map(function(e,i){
+    var dsEnt;
+    if(DDIM==='l'){
+      dsEnt=FLOWS.map(function(f){
+        var byP={};for(const x of _gs)byP[x.period]=(x[f[0]]||0)*f[3];
+        return {label:f[1],data:perSet.map(p=>byP[p]??null),backgroundColor:f[2],borderRadius:3,maxBarThickness:26};
+      }).filter(function(d){return d.data.some(function(v){return (v||0)!==0;});});
+    } else dsEnt=ents.map(function(e,i){
       const byP={};for(const x of (SRC[e].series||[]))byP[x.period]=(x.sales||x.collections||0);
       return {label:DDIM==='b'?e:nm(e),data:perSet.map(p=>byP[p]??null),backgroundColor:PAL[i%PAL.length],borderRadius:3,maxBarThickness:22};
     });

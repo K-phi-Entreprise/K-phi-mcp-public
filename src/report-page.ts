@@ -167,7 +167,11 @@ td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 }
 .mbtn{background:#1b1a1e;color:#b7b5af;border:1px solid #2c2b30;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
 .ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
-.chartbox{height:250px;position:relative;margin-top:6px}
+.chartbox{height:250px;position:relative;margin-top:6px;overflow:hidden}
+/* Le mode flux a besoin de hauteur ET de marges pour ses libellés : la boîte
+   s'agrandit uniquement dans ce mode, et borne toujours son contenu (le SVG
+   débordait sur les covenants — deux captures fondateur). */
+.chartbox.sk{height:330px}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
@@ -260,8 +264,9 @@ function drawSankey(){
   /* Géométrie contrainte : le SVG tient DANS sa boîte (viewBox + hauteur fixe),
      les libellés vivent AU-DESSUS de chaque nœud, jamais par-dessus les flux —
      le premier jet débordait sur les covenants (capture fondateur). */
-  var W=1000,H=330,TOP=26,BOT=22,x0=10,nodeW=13,cols=4,
-      colGap=(W-2*x0-nodeW)/(cols-1),usable=H-TOP-BOT;
+  var _bx=box.parentNode&&box.parentNode.clientHeight?box.parentNode.clientHeight:330;
+  var W=1000,H=Math.max(220,_bx),TOP=30,BOT=16,x0=10,nodeW=13,cols=4,
+      RIGHT=150, colGap=(W-x0-RIGHT-nodeW)/(cols-1), usable=H-TOP-BOT;
   var mx=Math.max(Math.abs(rev),1),sc=usable/mx;
   var h=function(v){return Math.max(3,Math.abs(v||0)*sc);};
   var G='#1baf7a',Rd='#d03b3b',B='#2a78d6',O='#eb6834',cogs=(gp!==null)?rev-gp:null,
@@ -297,7 +302,9 @@ function drawSankey(){
 }
 function draw(){
  var _sk=document.getElementById('sk'),_cv=document.getElementById('c');
- if(_sk&&_cv){_sk.style.display=(CM==='S')?'block':'none';_cv.style.display=(CM==='S')?'none':'block';}
+ if(_sk&&_cv){var _bx=_sk.parentNode;
+   if(_bx&&_bx.classList)_bx.classList.toggle('sk',CM==='S');
+   _sk.style.display=(CM==='S')?'block':'none';_cv.style.display=(CM==='S')?'none':'block';}
  if(CM==='S'){if(CH){CH.destroy();CH=null;}drawSankey();
    for(const b of ['bM','bW','bS'])if(document.getElementById(b))document.getElementById(b).style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';
    return;}

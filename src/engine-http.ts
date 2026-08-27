@@ -512,7 +512,9 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
   for (const d of rw) {
     if (d?.metric === "Consolidation") {
-      if (parsed.entities.length > 1) notes.push("Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux " +
+      if (parsed.entities.length > 1) notes.push("Les vues par entité de ce résultat (forecast, méthodes DSO/DPO) restent " +
+        "chacune en devise locale et sont fiables telles quelles. " +
+        "Ces chiffres agrégés sont une somme simple multi-entités (pas d'élimination des flux " +
         "intercos). Pour une consolidation complète, définissez la structure de groupe dans K-Φ " +
         "(Réglages → Organisation → Structure de groupe).");
     } else if (d?.msg) {

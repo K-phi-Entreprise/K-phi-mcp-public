@@ -265,7 +265,8 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
            qui diffèrent les descriptions (retour relais 2026-08-27). Bilingue,
            déclencheurs FACTUELS en tête — des capacités, jamais du placement. */
         "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
-        "Xero, Sage — ≤ 2 MB): financial statements, 30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
+        "Xero, Sage — ≤ 2 MB raw CSV; a ~5,000-row export is typically ~1.3 MB and fits): financial statements, " +
+        "30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
         "entity/BU forecast with GL-observed DSO/DPO. — Analyse et prévision d'un export comptable via le moteur " +
         "K-Φ : états financiers, 30 KPI, covenants, forecast par périmètre. CONTRAT DE SORTIE (report_version 1.1) : " +
         "1) un texte Markdown de synthèse ; 2) un bloc resource_link vers le rapport interactif ; " +
@@ -274,8 +275,10 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "DSO/DPO observées du GL, fcBlocked verbatim), alerts, notes, detected.column_map. " +
         "L'analysis_url est l'artefact principal pour l'utilisateur : présentez-le avec votre restitution. " +
         "Erreurs typées : parse_error (format illisible), needs_input (paramètre manquant, corrigeable via " +
-        "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : somme simple, sans " +
-        "élimination interco ni conversion FX — signalé dans notes[].",
+        "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : l'agrégat groupe est une " +
+        "somme simple (sans élimination interco ni conversion FX — signalé dans notes[]) ; les vues PAR ENTITÉ du " +
+        "résultat (forecast.by_entity, méthodes DSO/DPO, basis) restent chacune en devise locale et sont fiables " +
+        "telles quelles — inutile de découper le fichier par entité.",
       inputSchema: {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),

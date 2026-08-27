@@ -278,7 +278,13 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "column_map), engine_error (indisponibilité côté serveur). Conso multi-entités : l'agrégat groupe est une " +
         "somme simple (sans élimination interco ni conversion FX — signalé dans notes[]) ; les vues PAR ENTITÉ du " +
         "résultat (forecast.by_entity, méthodes DSO/DPO, basis) restent chacune en devise locale et sont fiables " +
-        "telles quelles — inutile de découper le fichier par entité.",
+        "telles quelles — inutile de découper le fichier par entité. " +
+        /* Faits privacy vérifiés dans routes/sandbox.js (round 3 du relais :
+           « it hands the data to a third party ») : tenant isolé, purge
+           définitive, résultat complet inline — le lien est ADDITIF. */
+        "Données : tenant sandbox isolé, supprimé DÉFINITIVEMENT (hard delete) sous 24 h si non réclamé ; " +
+        "aucun réemploi. Tous les KPI, alertes et le forecast sont renvoyés INLINE dans structuredContent — " +
+        "le lien dashboard est additif, rien n'est enfermé derrière.",
       inputSchema: {
       content: z.string().describe("Contenu brut du fichier CSV/TSV (≤ 2 Mo). Coller le contenu tel quel."),
       format_hint: formatHint.default("auto").describe("Logiciel source si connu, sinon 'auto'."),

@@ -51,7 +51,7 @@ h1{font-size:30px;margin:0;letter-spacing:-.5px}
 kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospace,monospace;font-size:14px}
 </style></head><body><div class="wrap">
 <header><h1>K-Φ — Secure upload</h1><span class="sub">Single-use link · valid 15 minutes · the file goes straight to the K-Φ engine, not through Claude</span></header>
-<ol class="steps"><li id="s1" class="cur"><b>1</b> Select your export</li><li id="s2"><b>2</b> Send it to K-Φ</li><li id="s3"><b>3</b> Reply “done” in your Claude chat</li></ol>
+<ol class="steps"><li id="s1" class="cur"><b>1</b> Select your export</li><li id="s2"><b>2</b> Send it to K-Φ</li><li id="s3"><b>3</b> Open your dashboard — or reply “done” in Claude</li></ol>
 <div class="cols">
 <div style="min-width:0;display:flex;flex-direction:column">
 <label class="drop" id="dz"><span class="ic">📄</span><span class="big" id="dzl">Drop your ledger export here</span><span class="mut">or click to browse — up to 500 MB</span><input type="file" id="f"></label>
@@ -72,7 +72,7 @@ kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospac
 <li>Financial statements + <span class="k">30 KPIs</span> (EBITDA, margins, DSO/DPO/DIO, liquidity, leverage)</li>
 <li>Bank <span class="k">covenants</span> tested against your thresholds</li>
 <li>A <span class="k">forecast</span> per entity or BU, using the DSO/DPO observed in your own ledger</li>
-<li>An interactive dashboard link, valid 24 h</li>
+<li>An interactive dashboard, valid 24 h — <b>it opens right here</b> as soon as the analysis is ready</li>
 </ul>
 <h2>Useful to mention in the chat</h2>
 <ul>
@@ -105,10 +105,36 @@ go.addEventListener('click',function(){
     if(x.status===202||x.status===200){
       pct.style.width='100%';step(3);
       dz.style.display='none';go.style.display='none';bar.style.display='none';
-      msg.innerHTML='<div class="done-box"><div class="h"><span class="ok">✅ File received by K-Φ.</span></div>'+
-        'Nothing else to do here — you can close this tab.<br><br><b>Next step:</b> switch back to your Claude conversation '+
-        '(the tab where you got this link) and simply reply <kbd>done</kbd>. Claude will pull the analysis and the dashboard link.'+
-        '<div class="sub" lang="fr" style="margin-top:14px">Fichier reçu. Fermez cet onglet, revenez dans votre conversation Claude et répondez <kbd>done</kbd>.</div></div>';
+      var id='';try{id=JSON.parse(x.responseText).analysis_id||'';}catch(_){}
+      msg.innerHTML='<div class="done-box" id="db"><div class="h"><span class="ok">✅ File received by K-Φ.</span></div>'+
+        '<div id="wait">Analyzing your ledger… this usually takes a few seconds.</div></div>';
+      /* On ne renvoie plus l'utilisateur au chat pour SAVOIR : la page suit
+         l'analyse et ouvre le dashboard dès qu'il existe. Le retour au chat
+         sert alors à ramener les chiffres dans la conversation, pas à
+         attendre. (Demande fondateur : « quel avantage… c'est pénible ».) */
+      if(id){
+        var tries=0;
+        var poll=setInterval(function(){
+          tries++;
+          fetch('/a/'+id+'/status').then(function(r){return r.json();}).then(function(j){
+            if(j.status==='ready'){
+              clearInterval(poll);
+              document.getElementById('wait').innerHTML=
+                '<b>Your dashboard is ready.</b><br><br>'+
+                '<a class="btn" style="display:block;text-align:center;text-decoration:none;padding:15px" href="/a/'+id+'">Open the K-Φ dashboard →</a>'+
+                '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in Claude.</div>'+
+                '<div class="sub" lang="fr" style="margin-top:12px">Tableau de bord prêt. Pour ramener les chiffres dans la conversation, répondez <kbd>done</kbd> dans Claude.</div>';
+            } else if(j.status==='error'||tries>40){
+              clearInterval(poll);
+              document.getElementById('wait').innerHTML=
+                'Upload complete. Reply <kbd>done</kbd> in your Claude conversation to get the analysis.'+
+                '<div class="sub" lang="fr" style="margin-top:10px">Fichier reçu : répondez <kbd>done</kbd> dans Claude.</div>';
+            }
+          }).catch(function(){});
+        },3000);
+      } else {
+        document.getElementById('wait').innerHTML='Reply <kbd>done</kbd> in your Claude conversation to get the analysis.';
+      }
     }else{
       var e;try{e=JSON.parse(x.responseText).error;}catch(_){e=x.status+' '+x.statusText;}
       msg.innerHTML='<span class="err">⚠ '+String(e).replace(/[<>&]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;'}[c];})+'</span>';

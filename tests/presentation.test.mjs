@@ -208,7 +208,9 @@ test("la page d'upload est un template constant : input fichier, PUT via pathnam
   assert.match(html, /location\.pathname/, "le PUT cible l'URL courante — le token reste hors du HTML");
   assert.match(html, /500 MB/, "plafond annoncé");
   assert.match(html, /What to send[\s\S]*What K-Φ returns/, "la page dit ce qu'elle attend et ce qu'elle rend");
-  assert.match(html, /switch back to your Claude conversation/, "consigne de retour explicite : fermer l'onglet, répondre done");
+  assert.match(html, /Open the K-Φ dashboard/, "le dashboard s'ouvre depuis la page d'upload");
+  assert.match(html, /\/status/, "la page suit l'état de l'analyse");
+  assert.match(html, /reply <kbd>done<\/kbd>/, "le retour au chat reste proposé, pour ramener les chiffres");
   assert.doesNotMatch(html, /\$\{/, "template constant, aucune interpolation serveur");
 });
 

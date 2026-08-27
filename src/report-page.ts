@@ -322,14 +322,21 @@ function draw2(){
    backgroundColor:['#2a78d6','#eb6834',eb<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:64}]},
   options:{...FOPT,plugins:{legend:{display:false}}}});
 }
+/* HAUT : mensuel du groupe, point. Aucune branche de mode — la variable CM
+   appartient désormais au bloc scopé du bas ; l'y laisser faisait rendre un
+   waterfall ici (régression vue en prod). */
 function draw(){
  if(CH)CH.destroy();
- for(const b of ['bM','bW','bS']){var _e=document.getElementById(b);if(_e)_e.style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';}
- CH=CM==='M'?new Chart(document.getElementById('c'),{data:{labels:S.map(s=>s.period),datasets:[
-  {type:'bar',label:'CA',data:S.map(s=>s.revenue??null),backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},
-  {type:'line',label:'EBITDA',data:S.map(s=>s.ebitda??null),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}]},options:OPT})
- :new Chart(document.getElementById('c'),{type:'bar',data:{labels:['CA exercice','Charges','EBITDA'],datasets:[{data:[[0,FYr],[FYr,FYe],[0,FYe]],backgroundColor:['#2a78d6','#eb6834',FYe<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:60}]},options:{...OPT,plugins:{legend:{display:false}}}});}
-draw();try{draw2();}catch(e){}</script>` : ""}
+ CH=new Chart(document.getElementById('c'),{data:{labels:S.map(s=>s.period),datasets:[
+  {type:'bar',label:${JSON.stringify(T.realBar)},data:S.map(s=>s.revenue??null),backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:26},
+  {type:'line',label:${JSON.stringify(T.ebitdaLine)},data:S.map(s=>s.ebitda??null),borderColor:'#eb6834',borderWidth:2,pointRadius:0,tension:.3}]},options:OPT});
+}
+draw();
+/* Le bloc scopé (Waterfall/Sankey) vit plus bas dans la page : au moment où
+   ce script s'exécute, sa boîte n'existe pas encore. On attend le rendu
+   complet — sinon le SVG se dessine dans une hauteur nulle et laisse un
+   grand vide (régression vue en prod). */
+window.addEventListener('load',function(){try{if(typeof draw2==='function')draw2();}catch(e){}});</script>` : ""}
 
 <script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>

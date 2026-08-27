@@ -383,40 +383,9 @@ test("axe sans trésorerie : bouton retiré ; extinction des encaissements expli
   assert.match(html, /receivables present in your ledger have all been collected/, "raison comptable donnée");
 });
 
-test("Sankey du compte de résultat + décomposition par ligne de flux (défaut)", () => {
-  const fx = { horizon_months: 3,
-    global: { series: [{ period: "2026-07", collections: 26e6, payments: 9e6, payroll: 4e6, opex: 2e6, tax: 1e6, interest: 3e5 }], blocked: null },
-    by_entity: { CADENTITY: { series: [{ period: "2026-07", collections: 6e6 }], blocked: null, kpi: { revenue: 1e7 } } },
-    by_bu: {}, methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
-  const html = renderReport("an_sk", { ...R, forecast: fx, report_version: "1.1",
-    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 145e6 },
-           { id: "gross_profit", label: "MB", unit: "EUR", value: 60e6 },
-           { id: "ebitda", label: "EBITDA", unit: "EUR", value: 23e6 },
-           { id: "net_income", label: "RN", unit: "EUR", value: 9e6 }],
-    series: [{ period: "2026-01", revenue: 2e7, ebitda: 3e6 }, { period: "2026-02", revenue: 2e7, ebitda: 3e6 }] });
-  assert.match(html, /id="bS"[^>]*>Sankey flow/, "bouton Sankey sur le graphique principal");
-  assert.match(html, /function drawSankey\(\)/, "rendu Sankey présent");
-  assert.match(html, /"revenue":145000000/, "les KPI groupe alimentent le Sankey");
-  assert.match(html, /Cost of sales[\s\S]*Gross profit[\s\S]*Operating expenses/, "étapes du compte de résultat");
-  assert.match(html, /id="dL"[^>]*>By flow line/, "bouton par ligne de flux");
-  assert.match(html, /DDIM='l'/, "les lignes de flux sont le défaut, l'entité une option");
-  assert.match(html, /Customer collections[\s\S]*Supplier payments[\s\S]*Payroll/, "postes de flux nommés");
-});
 
-test("Sankey : géométrie bornée (viewBox + hauteur fixe), libellés au-dessus des nœuds", () => {
-  const html = renderReport("an_skg", { ...R,
-    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 145e6 },
-           { id: "gross_profit", label: "MB", unit: "EUR", value: 78e6 },
-           { id: "ebitda", label: "EBITDA", unit: "EUR", value: 23e6 },
-           { id: "net_income", label: "RN", unit: "EUR", value: 9e6 }],
-    series: [{ period: "2026-01", revenue: 2e7, ebitda: 3e6 }, { period: "2026-02", revenue: 2e7, ebitda: 3e6 }] });
-  assert.match(html, /H=Math\.max\(220,_bx\)/, "la hauteur suit la boîte réelle, jamais une constante");
-  assert.match(html, /\.chartbox\{[^}]*overflow:hidden/, "la boîte borne son contenu");
-  assert.match(html, /preserveAspectRatio="xMidYMid meet"/, "le SVG s'inscrit dans sa boîte");
-  assert.match(html, /\.chartbox\{[^}]*overflow:hidden/, "la boîte borne son contenu — plus de débordement sur les covenants");
-  assert.match(html, /y="'\+\(y-12\)\+'"/, "libellé posé AU-DESSUS du nœud");
-  assert.match(html, /usable=H-TOP-BOT/, "hauteur utile calculée, pas d'échelle libre");
-});
+
+
 
 test("deux graphiques distincts : mensuel GROUPE en haut, structure SCOPÉE sous les filtres", () => {
   const fx = { horizon_months: 2, global: { series: [{ period: "2026-07", collections: 10 }], blocked: null },
@@ -441,4 +410,22 @@ test("non-régression : le graphique du haut est mensuel PUR, le bloc scopé se 
   assert.ok(!/CA exercice/.test(top), "aucun waterfall dans le bloc du haut");
   assert.ok(!/CM==='M'/.test(html), "draw() ne branche plus sur le mode");
   assert.match(html, /addEventListener\('load'/, "le bloc scopé attend la géométrie de sa boîte");
+});
+
+test("camemberts par entité : trois postes, un beignet par périmètre, EBITDA négatif traité", () => {
+  const fx = { horizon_months: 2, global: { series: [], blocked: null },
+    by_entity: { "1000": { series: [], blocked: null, kpi: { revenue: 6e6, ebitda: 9e5 } },
+                 "2000": { series: [], blocked: null, kpi: { revenue: 2e6, ebitda: -3e5 } } },
+    by_bu: {}, methods: { dso_by_entity: {}, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_pie", { ...R, forecast: fx, report_version: "1.1",
+    entity_names: { "1000": "Meridian France" },
+    kpis: [{ id: "revenue", label: "CA", unit: "EUR", value: 8e6 }, { id: "ebitda", label: "E", unit: "EUR", value: 6e5 }],
+    series: [{ period: "2026-01", revenue: 2e6, ebitda: 3e5 }, { period: "2026-02", revenue: 2e6, ebitda: 3e5 }] });
+  assert.match(html, /id="bS"[^>]*>Pies/, "le bouton Sankey est remplacé par Pies");
+  assert.ok(!/drawSankey/.test(html), "plus aucune trace du rendu Sankey");
+  assert.match(html, /function drawPies\(\)/, "rendu des camemberts");
+  assert.match(html, /type:'doughnut'/, "beignets Chart.js");
+  assert.match(html, /var neg=\(it\.eb!==null&&it\.eb<0\)/, "cas EBITDA négatif détecté");
+  assert.match(html, /negative EBITDA/, "libellé pour la part impossible");
+  assert.match(html, /Meridian France/, "les camemberts portent le nom des sociétés");
 });

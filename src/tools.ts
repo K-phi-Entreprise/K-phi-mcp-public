@@ -311,11 +311,13 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         /* Cadrage conso (2026-08-27, fondateur) : la somme simple est la
            limite de l'APERÇU sandbox, pas celle de K-Φ — la plateforme fait
            la consolidation complète. Dire la limite ET le chemin. */
-        "Multi-entity files: this PREVIEW aggregates as a simple sum (no FX conversion, no intercompany " +
-        "elimination — flagged in notes[]); per-entity views (forecast.by_entity, DSO/DPO methods, basis) are " +
-        "each in local currency and reliable as-is. FULL consolidation — FX conversion at your rates, " +
-        "intercompany matching & elimination — is available in the K-Φ platform on this same tenant once the " +
-        "analysis is claimed (free 30 days). " +
+        "Multi-entity files — READ CAREFULLY: whatever the input path (inline content OR upload link), THIS " +
+        "TOOL ALWAYS aggregates as a simple sum. It never converts FX and never eliminates intercompany flows; " +
+        "the upload link changes the file size limit, NOT the accounting method. Per-entity views " +
+        "(forecast.by_entity, DSO/DPO methods, basis) are each in local currency and reliable as-is. " +
+        "Full consolidation — FX at your own rates, intercompany matching & elimination — is a SEPARATE STEP " +
+        "outside this tool: the user claims the analysis in the K-Φ platform (free 30 days, same tenant, link " +
+        "in the dashboard). Do not promise converted or eliminated figures from this tool's output. " +
         "— Conso multi-entités : l'APERÇU agrège en somme simple (signalé dans notes[]) ; les vues par entité " +
         "restent en devise locale, fiables telles quelles. La consolidation COMPLÈTE (conversion FX à vos taux, " +
         "rapprochement et élimination intercos) est disponible dans la plateforme K-Φ sur ce même tenant, " +

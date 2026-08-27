@@ -527,9 +527,11 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
   for (const d of rw) {
     if (d?.metric === "Consolidation") {
-      if (parsed.entities.length > 1) notes.push("Aperçu multi-entités : les vues par entité (forecast, méthodes DSO/DPO) restent " +
-        "chacune en devise locale et sont fiables telles quelles ; la consolidation complète (conversion FX à vos taux, " +
-        "élimination intercos) est disponible dans K-Φ sur ce même tenant une fois l'analyse réclamée. " +
+      if (parsed.entities.length > 1) notes.push("Aperçu multi-entités : les chiffres ci-dessous sont une SOMME SIMPLE — aucune conversion de change, " +
+        "aucune élimination interco, quelle que soit la voie d'entrée du fichier. Les vues par entité (forecast, " +
+        "méthodes DSO/DPO) restent chacune en devise locale et sont fiables telles quelles. La consolidation " +
+        "complète (FX à vos taux, rapprochement et élimination intercos) est une ÉTAPE DISTINCTE, dans la " +
+        "plateforme K-Φ, après avoir réclamé cette analyse (30 j gratuits, même tenant). " +
         "Les chiffres agrégés ci-dessous sont une somme simple (pas d'élimination des flux " +
         "intercos). Pour une consolidation complète, définissez la structure de groupe dans K-Φ " +
         "(Réglages → Organisation → Structure de groupe).");

@@ -64,21 +64,21 @@ test("colonne AccountName mappée et stable : coa_dict + header_text sur chaque 
   assert.equal(r.coa_dict["40000"], "Revenue - Product Sales");
   assert.ok(r.entries.every(e => e.header_text === r.coa_dict[e.acct]));
   /* le mémo de ligne (desc) n'est pas pollué par l'intitulé */
-  assert.ok(!r.warnings.some(w => /mémo/.test(w)));
+  assert.ok(!r.warnings.some(w => /memo/.test(w)));
 });
 
 test("Bezeichnung : mappée par inclusion de synonyme, silencieuse", () => {
   const r = parseLedger(DE_BEZEICHNUNG);
   assert.equal(r.coa_dict["1200"], "Bank Girokonto");
   assert.equal(r.coa_dict["8400"], "Erlös" + "e 19% USt");
-  assert.ok(!r.warnings.some(w => /dépendance/.test(w)), "chemin mappé : pas d'avertissement d'adoption");
+  assert.ok(!r.warnings.some(w => /dependency/.test(w)), "chemin mappé : pas d'avertissement d'adoption");
 });
 
 test("en-tête inconnu (Megnevezes) : adoption par dépendance fonctionnelle, avec avertissement explicite", () => {
   const r = parseLedger(HU_UNKNOWN_HEADER);
   assert.equal(r.coa_dict["3841"], "Bankbetetek forintban");
   assert.equal(r.coa_dict["9111"], "Belfoldi ertekesites");
-  assert.ok(r.warnings.some(w => /Megnevezes/.test(w) && /dépendance/.test(w)));
+  assert.ok(r.warnings.some(w => /Megnevezes/.test(w) && /dependency/.test(w)));
   assert.equal(r.entries[0].header_text, "Bankbetetek forintban");
 });
 
@@ -86,7 +86,7 @@ test("mémos déguisés en AccountName : rétrogradés, aucun header_text, avert
   const r = parseLedger(MEMO_AS_NAME);
   assert.deepEqual(r.coa_dict, {});
   assert.ok(r.entries.every(e => e.header_text === undefined));
-  assert.ok(r.warnings.some(w => /mémo/.test(w)));
+  assert.ok(r.warnings.some(w => /memo/.test(w)));
 });
 
 test("colonne catégorie (Asset/Revenue) : rejetée — stable mais non discriminante", () => {

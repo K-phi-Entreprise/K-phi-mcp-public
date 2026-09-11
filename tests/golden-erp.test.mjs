@@ -35,7 +35,7 @@ test("FBL3N : montant unique + SHKZG (S/H), jamais de mode signé, dates alleman
   assert.equal(balanced(r), 1734.56);
   assert.equal(r.entries[0].date, "2025-01-15");
   assert.equal(r.entries[0].entity, "1000");
-  assert.ok(r.warnings.some(w => /indicateur D\/C/.test(w)));
+  assert.ok(r.warnings.some(w => /D\/C indicator/.test(w)));
   assert.equal(r.genre, "ledger");
 });
 
@@ -79,7 +79,7 @@ test("D365 dégradé : sans MAINACCOUNTID, repli ACCOUNTDISPLAYVALUE avec averti
   const degraded = D365.split("\n").map(l => l.split(",").filter((_, i) => i !== 2).join(",")).join("\n");
   const r = parseLedger(degraded);
   assert.equal(r.entries[0].acct, "110110-001-SALES");
-  assert.ok(r.warnings.some(w => /dimensions concaténées/.test(w)));
+  assert.ok(r.warnings.some(w => /concatenated dimensions/.test(w)));
 });
 
 /* ── QuickBooks : Balance = solde CUMULÉ, Split = contrepartie — poison ── */
@@ -92,7 +92,7 @@ const QB = `Date,Type,Num,Name,Memo,Account,Split,Debit,Credit,Balance
 test("QuickBooks : Balance et Split exclus (avertis), comptes = noms", () => {
   const r = parseLedger(QB);
   assert.equal(balanced(r), 600, "Balance (999999 cumulés) jamais lu comme montant");
-  assert.ok(r.warnings.some(w => /ignorées/.test(w) && /Balance/.test(w) && /Split/.test(w)));
+  assert.ok(r.warnings.some(w => /ignored/.test(w) && /Balance/.test(w) && /Split/.test(w)));
   assert.equal(r.entries[0].acct, "Accounts Receivable");
 });
 
@@ -196,7 +196,7 @@ test("column_map en entrée : l'override prime sur l'inférence et libère la co
 `, undefined, { columnMap: { acct: "Ref" } });
   assert.equal(r.entries[0].acct, "10100", "le champ forcé prime");
   assert.equal(r.overrides_applied, 1);
-  assert.ok(r.warnings.some(w => /forcés par column_map/.test(w)));
+  assert.ok(r.warnings.some(w => /forced by column_map/.test(w)));
 });
 
 test("column_map : en-tête introuvable ou champ inconnu → avertissement, jamais un crash", () => {
@@ -204,8 +204,8 @@ test("column_map : en-tête introuvable ou champ inconnu → avertissement, jama
 2025-01-31,10100,10.00,0.00
 2025-01-31,40000,0.00,10.00
 `, undefined, { columnMap: { acct: "Nonexistent", frobnicate: "Account" } });
-  assert.ok(r.warnings.some(w => /introuvable/.test(w)));
-  assert.ok(r.warnings.some(w => /champ inconnu/.test(w)));
+  assert.ok(r.warnings.some(w => /not found/.test(w)));
+  assert.ok(r.warnings.some(w => /unknown field/.test(w)));
   assert.equal(r.entries[0].acct, "10100", "l'inférence reste en place");
 });
 

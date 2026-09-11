@@ -106,14 +106,14 @@ test("plus jamais de date au mois courant : la période détectée ne dépend pa
 
 test("period_end invalide : ignoré avec avertissement, la colonne date prime", () => {
   const r = parseLedger(LEDGER_DATED, undefined, { periodEnd: "31/12/2025 minuit" });
-  assert.ok(r.warnings.some(w => /period_end/.test(w) && /invalide/.test(w)));
+  assert.ok(r.warnings.some(w => /period_end/.test(w) && /invalid/.test(w)));
   assert.equal(r.period_from, "2025-01");
 });
 
 test("écritures postérieures à period_end : signalées, pas supprimées", () => {
   const r = parseLedger(LEDGER_DATED, undefined, { periodEnd: "2025-01-31" });
   assert.equal(r.entries.length, 4);
-  assert.ok(r.warnings.some(w => /postérieures/.test(w)));
+  assert.ok(r.warnings.some(w => /later than period_end/.test(w)));
 });
 
 /* ── Invariants comptables sur tout le corpus ────────────────────── */
@@ -145,7 +145,7 @@ test("colonne devise non monétaire (taux de change) : ignorée à la source, ja
   const r = parseLedger(csv, "generic");
   assert.equal(r.currency, "", "aucune devise inventée");
   assert.ok(r.entries.every(e => !e.ccy), "les écritures partent sans devise fausse (l'app ne l'affichera pas)");
-  assert.ok(r.warnings.some(w => /Colonne devise ignorée/.test(w)), "l'ignorance est signalée");
+  assert.ok(r.warnings.some(w => /Currency column ignored/.test(w)), "l'ignorance est signalée");
   const ok = parseLedger(csv.replace(/0\.01/g, "USD"), "generic");
   assert.equal(ok.currency, "USD", "une vraie devise passe");
 });

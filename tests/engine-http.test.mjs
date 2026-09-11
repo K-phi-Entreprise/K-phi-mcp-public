@@ -110,12 +110,12 @@ test("taxonomie : NeedsInput → question structurée ; Engine → jamais la fau
   assert.match(need.text, /period_end/);
 
   const eng = describeAnalysisError(new EngineError("import 2025-01: 500 Internal server error", 500), "an_2");
-  assert.match(eng.text, /n'est pas en cause/);
-  assert.doesNotMatch(eng.text, /export comptable/, "un 5xx moteur n'accuse plus le fichier");
+  assert.match(eng.text, /not at fault/);
+  assert.doesNotMatch(eng.text, /accounting export/, "un 5xx moteur n'accuse plus le fichier");
   assert.match(eng.text, /an_2/);
 
   const parse = describeAnalysisError(new ParseError("Colonne compte introuvable"), "an_3");
-  assert.match(parse.text, /export comptable/);
+  assert.match(parse.text, /accounting export/);
   assert.equal(parse.needs, undefined);
 
   const other = describeAnalysisError(new Error("boom"), "an_4");

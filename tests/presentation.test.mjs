@@ -28,17 +28,17 @@ const text = out.content.find(c => c.type === "text").text;
 const lines = text.split("\n");
 
 test("le lien est un CTA de tête : titre ##, MAJUSCULES, dans les 6 premières lignes après la synthèse", () => {
-  const idx = lines.findIndex(l => l.includes("OUVRIR L'ANALYSE COMPLÈTE"));
+  const idx = lines.findIndex(l => l.includes("OPEN THE FULL ANALYSIS"));
   assert.ok(idx >= 0 && idx <= 6, `CTA à la ligne ${idx}`);
   assert.ok(lines[idx].startsWith("## "), "rendu en titre");
   assert.ok(lines[idx].includes("https://mcp.test/a/an_test123"));
 });
 
 test("consigne au relais : une ligne prête à copier, jamais l'URL brute seule", () => {
-  assert.match(text, /reproduire la ligne suivante telle quelle/);
-  assert.match(text, /jamais l'URL brute/);
+  assert.match(text, /reproduce the following line verbatim/);
+  assert.match(text, /never the bare URL/);
   /* la ligne à copier est un blockquote-titre autonome avec le lien Markdown */
-  assert.match(text, /> ## 📊 \[Ouvrir l'analyse complète dans K-Φ\]\(https:\/\/mcp\.test\/a\/an_test123\)/);
+  assert.match(text, /> ## 📊 \[Open the full analysis in K-Φ\]\(https:\/\/mcp\.test\/a\/an_test123\)/);
 });
 
 test("le lien apparaît TROIS fois (CTA + ligne à copier + rappel de pied)", () => {
@@ -47,11 +47,11 @@ test("le lien apparaît TROIS fois (CTA + ligne à copier + rappel de pied)", ()
 });
 
 test("KPI en tableaux Markdown groupés, avec jauge et état coloré", () => {
-  assert.match(text, /### 📈 Rentabilité/);
-  assert.match(text, /### 💧 Trésorerie & cycle/);
-  assert.match(text, /\| Indicateur \| Valeur \| Jauge \| État \|/);
-  assert.match(text, /\| Marge d'EBITDA \| \*\*12[.,]0 %\*\* \| [▰▱]{10} \| 🟡 \|/);
-  assert.match(text, /\| DSO \| \*\*112 j\*\* \| [▰▱]{10} \| 🔴 \|/);
+  assert.match(text, /### 📈 Profitability/);
+  assert.match(text, /### 💧 Cash & working-capital cycle/);
+  assert.match(text, /\| KPI \| Value \| Gauge \| Status \|/);
+  assert.match(text, /\| Marge d'EBITDA \| \*\*12[.,]0%\*\* \| [▰▱]{10} \| 🟡 \|/);
+  assert.match(text, /\| DSO \| \*\*112 d\*\* \| [▰▱]{10} \| 🔴 \|/);
   assert.match(text, /Ratio de liquidité ✅ \*covenant\*/);
   assert.match(text, /DSCR ⛔ \*covenant\*.*🔴/);
 });
@@ -61,10 +61,10 @@ test("les montants ne portent pas de jugement : jauge — et état ⚪", () => {
 });
 
 test("fichier analysé en tableau ; alertes en blockquote ⚠️ ; notes repliées", () => {
-  assert.match(text, /\| Format \| csv — grand livre \|/);
-  assert.match(text, /\| Écritures \| 17[  \u202f\u00a0]769 \|/);
+  assert.match(text, /\| Format \| csv — general ledger \|/);
+  assert.match(text, /\| Entries \| 17,769 \|/);
   assert.match(text, /> ⚠️ DSCR non calculé/);
-  assert.match(text, /<details><summary>À affiner/);
+  assert.match(text, /<details><summary>Refine if needed/);
 });
 
 test("contrat versionné : report_version 1.0 ancré (additif ensuite, rupture = bump majeur)", () => {
@@ -112,7 +112,7 @@ test("le lien est un OBJET du protocole : resource_link en PREMIER bloc (rendu p
   assert.equal(out.content[1].type, "text");
   assert.equal(rl.type, "resource_link");
   assert.equal(rl.uri, "https://mcp.test/a/an_test123");
-  assert.match(rl.name, /Dashboard K-Φ/);
+  assert.match(rl.name, /K-Φ dashboard/);
   assert.equal(rl.mimeType, "text/html");
 });
 
@@ -152,13 +152,13 @@ test("durcissement : Chart.js émis UNE fois, inconditionnel — balance mono-mo
 
 /* ── Découvrabilité (retour relais 2026-08-27 : descriptions différées) ── */
 import { readFileSync } from "node:fs";
-test("la PREMIÈRE ligne de kphi_analyze_ledger est bilingue et porte les déclencheurs factuels", () => {
+test("la PREMIÈRE ligne de kphi_analyze_ledger est en anglais et porte les déclencheurs factuels", () => {
   const src = readFileSync(new URL("../src/tools.ts", import.meta.url), "utf8");
   const firstLine = src.match(/"Financial analysis & forecast[^"]+"/)?.[0] ?? "";
   for (const kw of ["KPI", "covenant", "DSCR", "forecast", "SAP", "trial-balance", "DSO"])
     assert.ok(new RegExp(kw, "i").test(firstLine + src.slice(src.indexOf(firstLine), src.indexOf(firstLine) + 700)),
       `déclencheur visible manquant : ${kw}`);
-  assert.match(src, /Analyse et prévision d'un export comptable/, "la ligne reste bilingue — jamais un fix mono-langue");
+  assert.doesNotMatch(src, /Analyse et prévision d'un export comptable/, "plus de doublon FR dans la description — surface anglaise pour les directories");
 });
 
 /* ── i18n (2026-08-27, fondateur : « in ENGLISH ») ───────────────── */
@@ -196,7 +196,7 @@ test("le texte narre le forecast : règles listées, périmètres avec DSO obser
   assert.match(txt, /Forecast \(K-Φ engine\)/, "narration EN par défaut");
   assert.match(txt, /receivables→DSO · payables→DPO/, "règles listées");
   assert.match(txt, /\(5 rules\)/, "compte des règles auto");
-  assert.match(txt, /\*\*E1\*\* — 1 months projected · DSO 27 j \(GL-observed\)/, "périmètre + méthode observée");
+  assert.match(txt, /\*\*E1\*\* — 1 months projected · DSO 27 d \(GL-observed\)/, "périmètre + méthode observée");
   assert.match(txt, /\*\*E2\*\* — ⚠ blocked by the engine: no history/, "blocage verbatim, jamais masqué");
 });
 

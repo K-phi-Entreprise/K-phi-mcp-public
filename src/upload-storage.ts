@@ -74,7 +74,7 @@ export function createUploadStorage(spec: string | undefined): UploadStorageSetu
   if (spec === "mock") return { kind: "mock", note: "mock (routage seulement, moteur mock)" };
   if (spec === "tmp" || spec.startsWith("tmp:")) {
     const dir = spec === "tmp" ? join(tmpdir(), "kphi-uploads") : spec.slice(4);
-    return { kind: "tmp", storage: new FsUploadStorage(dir), note: `fichiers sous ${dir} (TTL 24 h)` };
+    return { kind: "tmp", storage: new FsUploadStorage(dir), note: `files under ${dir} (24 h TTL)` };
   }
   return { kind: "disabled", note: `value "${spec}" not recognized → upload DISABLED (backends: mock, tmp, tmp:/path)` };
 }

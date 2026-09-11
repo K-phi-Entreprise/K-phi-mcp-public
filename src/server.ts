@@ -303,7 +303,7 @@ app.get("/a/:id/open", async (req, res) => {
 app.get("/stats", (req, res) => {
   if (STATS_TOKEN) {
     const supplied = (req.query.token as string | undefined) ?? req.header("X-Stats-Token");
-    if (supplied !== STATS_TOKEN) { res.status(401).json({ error: "Token manquant ou invalide." }); return; }
+    if (supplied !== STATS_TOKEN) { res.status(401).json({ error: "Token missing or invalid." }); return; }
   }
   res.json(usage.snapshot());
 });

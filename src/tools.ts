@@ -124,12 +124,12 @@ function fcNarrative(p: { forecast?: AnalysisResult["forecast"]; locale?: string
   const fx = p.forecast;
   if (!fx) return "";
   const fr = p.locale === "fr";
-  const ruleNote = p.notes.find(n => /Règles de flux générées|[Ff]low rules generated/.test(n));
-  const L = fr
+  const ruleNote = p.notes.find(n => /Règles de flux générées|[Ff]low rules generated/.test(n)); /* i18n:fr-ok */
+  const L = fr /* i18n:fr-ok-begin */
     ? { h: "## 🔮 Forecast (moteur K-Φ)", rules: "Règles standard générées automatiquement de la classification du GL",
         ruleList: "créances→DSO · fournisseurs→DPO · intérêts/opex→moyenne historique · taxes→trimestriel · paie→mensuel",
         scope: "Par périmètre — DSO/DPO observés du GL de CHAQUE périmètre, appliqués à SA projection :",
-        glob: "Global", mo: "mois projetés", blocked: "bloqué par le moteur :", obs: "observé GL", fb: "repli" }
+        glob: "Global", mo: "mois projetés", blocked: "bloqué par le moteur :", obs: "observé GL", fb: "repli" } /* i18n:fr-ok-end */
     : { h: "## 🔮 Forecast (K-Φ engine)", rules: "Standard rules auto-generated from your GL classification",
         ruleList: "receivables→DSO · payables→DPO · interest/opex→historical average · taxes→quarterly · payroll→monthly",
         scope: "Per scope — each scope's GL-observed DSO/DPO applied to ITS OWN projection:",
@@ -137,13 +137,13 @@ function fcNarrative(p: { forecast?: AnalysisResult["forecast"]; locale?: string
   const dsoM = fx.methods?.dso_by_entity ?? {};
   const line = (name: string, s: { series: Array<Record<string, unknown>>; blocked: unknown }, m?: { value: number; source: string }) => {
     if (s.blocked) { const b = s.blocked as { reason?: string }; return `- **${name}** — ⚠ ${L.blocked} ${b.reason ?? JSON.stringify(s.blocked)}`; }
-    const meth = m ? ` · DSO ${m.value} ${fr ? "j" : "d"} (${m.source === "gl_observed" ? L.obs : L.fb})` : "";
+    const meth = m ? ` · DSO ${m.value} ${fr ? "j" /* i18n:fr-ok */ : "d"} (${m.source === "gl_observed" ? L.obs : L.fb})` : "";
     return `- **${name}** — ${s.series.length} ${L.mo}${meth}`;
   };
   const rows = [line(L.glob, fx.global)]
     .concat(Object.entries(fx.by_entity).map(([e, s]) => line(e, s, dsoM[e])))
     .concat(Object.entries(fx.by_bu).map(([b, s]) => line("BU " + b, s)));
-  return `${L.h}\n\n${L.rules}${ruleNote ? ` (${ruleNote.match(/\d+/)?.[0] ?? ""} ${fr ? "règles" : "rules"})` : ""} : ${L.ruleList}.\n\n${L.scope}\n${rows.join("\n")}\n\n`;
+  return `${L.h}\n\n${L.rules}${ruleNote ? ` (${ruleNote.match(/\d+/)?.[0] ?? ""} ${fr ? "règles" /* i18n:fr-ok */ : "rules"})` : ""} : ${L.ruleList}.\n\n${L.scope}\n${rows.join("\n")}\n\n`;
 }
 
 export function present(deps: ToolDeps, analysisId: string, r: AnalysisResult) {

@@ -272,6 +272,7 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
    avant devise de transaction, NetSuite « Account Number » avant le
    « Account » qui porte des NOMS, SAP DMBTR/HSL avant les montants devise
    document. */
+/* i18n:fr-ok-begin — header synonyms: matching data, not output */
 const SYN: Record<string, string[]> = {
   /* formes numéro/code AVANT le « account » nu : NetSuite exporte les NOMS
      dans « Account » et le code dans « Account Number ». */
@@ -314,6 +315,7 @@ const SYN: Record<string, string[]> = {
   ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal", "xblnr", "zuonr", "refno", "referencenumber"],
   id:     ["id", "entryid", "ecriturenum", "belnr", "voucherno", "vouchernumber", "journalnumber", "transactionnumber", "numero", "num", "line", "ligne", "transactionid"],
 };
+/* i18n:fr-ok-end */
 
 /* Colonnes à EXCLURE du mapping et de l'adoption : les pièges qui produisent
    des chiffres faux (QuickBooks Balance = solde cumulé, Split = compte de
@@ -469,7 +471,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     m.acct = m.acct_display;
     warnings.push(`Account read from "${header[m.acct_display]}" (string with concatenated dimensions): map the pure account code (MAINACCOUNTID) if available.`);
   }
-  if (m.acct == null) throw new ParseError("Account column not found (expected: account / compte / CompteNum…).");
+  if (m.acct == null) throw new ParseError("Account column not found (expected: account / compte / CompteNum…)."); /* i18n:fr-ok — header examples */
   if (m.dr == null && m.cr == null && m.amount == null)
     throw new ParseError("Amount columns not found (expected: debit/credit, or a signed amount with an optional D/C indicator).");
 
@@ -720,6 +722,7 @@ function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_b
    une fausse. */
 /** Familles d'axes analytiques, par ordre de priorité. Chaque entrée :
  *  [libellé lisible, alias d'en-tête normalisés]. */
+/* i18n:fr-ok-begin — axis header aliases: matching data, not output */
 export const ANALYTIC_AXES: Array<[string, string[]]> = [
   ["Business unit", ["bu", "businessunit", "business_unit", "uniteoperationnelle", "unitéopérationnelle", "division", "segment", "branche", "branch"]],
   ["Profit center", ["prctr", "profitcenter", "profit_center", "centredeprofit", "centre_de_profit"]],
@@ -732,6 +735,7 @@ export const ANALYTIC_AXES: Array<[string, string[]]> = [
   ["Analytic axis", ["analytique", "analytic", "dimension1", "dim1", "axe", "axeanalytique", "class", "classe", "tag", "categorie", "catégorie"]],
   ["Tax code", ["taxcode", "codetaxe", "mwskz", "vatcode", "tvacode", "taxkey"]],
 ];
+/* i18n:fr-ok-end */
 
 export const isCurrencyCode = (v: string): boolean =>
   /^[A-Za-z]{3}$/.test(v.trim()) || /^[€$£¥₣]$/.test(v.trim());

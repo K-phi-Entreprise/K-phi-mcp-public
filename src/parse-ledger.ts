@@ -255,7 +255,7 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
       ref: iRef >= 0 && c[iRef] ? c[iRef] : undefined,
     });
   }
-  if (iMontDev >= 0) warnings.push("Montantdevise ignoré : les montants sont pris en devise de tenue (Debit/Credit).");
+  if (iMontDev >= 0) warnings.push("Montantdevise ignored: amounts are taken in the bookkeeping currency (Debit/Credit).");
   for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
   return finish("fec", entries, dropped, warnings, ccys, coaDict, 1);
 }
@@ -272,6 +272,7 @@ function parseFec(lines: string[], delim: string, entity: string): ParseResult {
    avant devise de transaction, NetSuite « Account Number » avant le
    « Account » qui porte des NOMS, SAP DMBTR/HSL avant les montants devise
    document. */
+/* i18n:fr-ok-begin — header synonyms: matching data, not output */
 const SYN: Record<string, string[]> = {
   /* formes numéro/code AVANT le « account » nu : NetSuite exporte les NOMS
      dans « Account » et le code dans « Account Number ». */
@@ -314,6 +315,7 @@ const SYN: Record<string, string[]> = {
   ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal", "xblnr", "zuonr", "refno", "referencenumber"],
   id:     ["id", "entryid", "ecriturenum", "belnr", "voucherno", "vouchernumber", "journalnumber", "transactionnumber", "numero", "num", "line", "ligne", "transactionid"],
 };
+/* i18n:fr-ok-end */
 
 /* Colonnes à EXCLURE du mapping et de l'adoption : les pièges qui produisent
    des chiffres faux (QuickBooks Balance = solde cumulé, Split = compte de
@@ -425,7 +427,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   const skip = new Set<number>();
   for (let i = 0; i < normH.length; i++) if (SKIP_RX.test(normH[i])) skip.add(i);
   if (skip.size > 0)
-    warnings.push(`Colonnes ignorées (pièges connus : soldes cumulés, contreparties, montants TTC/taxe) : ${[...skip].map(i => header[i]).join(", ")}.`);
+    warnings.push(`Columns ignored (known traps: cumulative balances, offset accounts, tax-inclusive/tax amounts): ${[...skip].map(i => header[i]).join(", ")}.`);
 
   const m = mapHeaders(header, skip);
   /* Axes analytiques disponibles : colonnes non déjà mappées qui matchent une
@@ -453,25 +455,25 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   if (opts.columnMap) {
     for (const [field, hdr] of Object.entries(opts.columnMap)) {
       if (field === "amount_mode") { forcedMode = hdr as typeof forcedMode; continue; }
-      if (!(field in SYN)) { warnings.push(`column_map : champ inconnu « ${field} » ignoré.`); continue; }
+      if (!(field in SYN)) { warnings.push(`column_map: unknown field "${field}" ignored.`); continue; }
       const idx = normH.indexOf(normHeader(String(hdr)));
-      if (idx < 0) { warnings.push(`column_map : en-tête « ${hdr} » introuvable pour « ${field} ».`); continue; }
+      if (idx < 0) { warnings.push(`column_map: header "${hdr}" not found for "${field}".`); continue; }
       /* libère l'ancienne affectation de cette colonne, le cas échéant */
       for (const k of Object.keys(m) as (keyof typeof SYN)[]) if (m[k] === idx && k !== field) delete m[k];
       (m as Record<string, number>)[field] = idx;
       skip.delete(idx);   /* un override explicite lève même un skip */
       overridesApplied++;
     }
-    if (overridesApplied > 0) warnings.push(`${overridesApplied} champ(s) forcés par column_map.`);
+    if (overridesApplied > 0) warnings.push(`${overridesApplied} field(s) forced by column_map.`);
   }
   /* D365 : ACCOUNTDISPLAYVALUE en dernier recours seulement. */
   if (m.acct == null && m.acct_display != null) {
     m.acct = m.acct_display;
-    warnings.push(`Compte lu depuis « ${header[m.acct_display]} » (chaîne à dimensions concaténées) : mappez le code compte pur (MAINACCOUNTID) si disponible.`);
+    warnings.push(`Account read from "${header[m.acct_display]}" (string with concatenated dimensions): map the pure account code (MAINACCOUNTID) if available.`);
   }
-  if (m.acct == null) throw new ParseError("Colonne compte introuvable (attendu : compte / account / CompteNum…).");
+  if (m.acct == null) throw new ParseError("Account column not found (expected: account / compte / CompteNum…)."); /* i18n:fr-ok — header examples */
   if (m.dr == null && m.cr == null && m.amount == null)
-    throw new ParseError("Colonnes montant introuvables (attendu : débit/crédit, ou montant signé avec indicateur D/C éventuel).");
+    throw new ParseError("Amount columns not found (expected: debit/credit, or a signed amount with an optional D/C indicator).");
 
   /* Filtres de lignes (HFM Scenario/View, NetSuite Is Posting) : actifs
      seulement quand la colonne existe ET porte des valeurs mixtes. */
@@ -488,7 +490,7 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     const hasKeep = [...vals].some(v => f.keep.test(v));
     if (vals.size > 1 && hasKeep) activeFilters.push({ idx, keep: f.keep, label: f.label, removed: 0 });
     else if (vals.size === 1 && !hasKeep && f.col === "view")
-      warnings.push("Colonne View entièrement en cumul (YTD) : les montants sont cumulés, risque de double-comptage — exportez en Periodic.");
+      warnings.push("View column entirely cumulative (YTD): amounts are cumulative, double-counting risk — export as Periodic.");
   }
 
   const entries: LedgerEntry[] = [];
@@ -503,11 +505,11 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   else if (forcedMode === "signed" || forcedMode === "signed_inv") {
     dualMode = indicatorMode = false; signedMode = m.amount != null;
     signedInv = forcedMode === "signed_inv";
-    if (signedInv) warnings.push("amount_mode signed_inv : positif → crédit (convention PCG/Cegid).");
+    if (signedInv) warnings.push("amount_mode signed_inv: positive → credit (PCG/Cegid convention).");
   }
   if (indicatorMode)
-    warnings.push(`Montant unique + indicateur D/C (« ${header[m.dc_ind!]} ») : S/D/DR/SOLL → débit, H/C/CR/HABEN → crédit, montants pris en valeur absolue (convention SAP/Sage X3).`);
-  else if (signedMode) warnings.push("Montant signé détecté : positif → débit, négatif → crédit.");
+    warnings.push(`Single amount + D/C indicator ("${header[m.dc_ind!]}"): S/D/DR/SOLL → debit, H/C/CR/HABEN → credit, amounts taken as absolute values (SAP/Sage X3 convention).`);
+  else if (signedMode) warnings.push("Signed amount detected: positive → debit, negative → credit.");
   let indUnknown = 0, negWithInd = 0, docIdRows = 0;
 
   /* ── Résolution des dates : échelle explicite, jamais de date inventée ──
@@ -520,12 +522,12 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
      de l'analyse : DSO/DPO/DIO faux d'un facteur 12, période affichée
      fausse. Une donnée fabriquée est consentie, marquée, ou refusée. */
   const peIso = opts.periodEnd ? isoDate(opts.periodEnd) : "";
-  if (opts.periodEnd && !peIso) warnings.push(`period_end « ${opts.periodEnd} » invalide (attendu YYYY-MM-DD) : ignoré.`);
+  if (opts.periodEnd && !peIso) warnings.push(`period_end "${opts.periodEnd}" invalid (expected YYYY-MM-DD): ignored.`);
   const fyDefault = peIso ? +peIso.slice(0, 4) : undefined;
   if (m.date == null && m.period == null && !peIso)
     throw new NeedsInputError(
-      "Aucune information de date dans le fichier (ni colonne date, ni colonne période). " +
-      "Fournissez period_end (date de clôture YYYY-MM-DD) ou ré-exportez avec les dates.",
+      "No date information in the file (no date column, no period column). " +
+      "Provide period_end (closing date YYYY-MM-DD) or re-export with dates.",
       ["period_end"]);
   let synthCount = 0, periodUnreadable = 0;
 
@@ -622,23 +624,23 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
   }
   if (!entries.length && (periodUnreadable > 0 || (m.date == null && m.period != null && !peIso)))
     throw new NeedsInputError(
-      "Colonne période présente mais année indéterminable (périodes numériques sans exercice). " +
-      "Fournissez period_end (YYYY-MM-DD) : son année servira d'exercice.",
+      "Period column present but the fiscal year cannot be determined (numeric periods without a year). " +
+      "Provide period_end (YYYY-MM-DD): its year will be used as the fiscal year.",
       ["period_end"]);
   if (synthCount > 0)
-    warnings.push(`${synthCount} écriture(s) sans date : dates synthétiques générées ` +
-      (m.period != null ? "depuis la colonne période (dernier jour du mois" : `au period_end fourni (${peIso}`) +
-      ", marquées is_synth_date dans K-Φ).");
+    warnings.push(`${synthCount} entry(ies) without a date: synthetic dates generated ` +
+      (m.period != null ? "from the period column (last day of the month" : `at the provided period_end (${peIso}`) +
+      ", flagged is_synth_date in K-Φ).");
   if (periodUnreadable > 0 && entries.length)
-    warnings.push(`${periodUnreadable} ligne(s) à période illisible ${peIso ? `datées au period_end` : "ignorées"}.`);
+    warnings.push(`${periodUnreadable} row(s) with an unreadable period ${peIso ? `dated at period_end` : "ignored"}.`);
   if (peIso) {
     const after = entries.filter(e => !e._is_synth_date && e.date > peIso).length;
-    if (after > 0) warnings.push(`${after} écriture(s) postérieures à period_end ${peIso} : clôture incomplète ou period_end erroné ?`);
+    if (after > 0) warnings.push(`${after} entry(ies) later than period_end ${peIso}: incomplete closing or wrong period_end?`);
   }
   for (const f of activeFilters)
     if (f.removed > 0) warnings.push(`${f.removed} ligne(s) exclue(s) — ${f.label}.`);
-  if (indUnknown > 0) warnings.push(`${indUnknown} ligne(s) à indicateur D/C illisible ignorées.`);
-  if (negWithInd > 0) warnings.push(`${negWithInd} montant(s) négatifs malgré l'indicateur D/C : valeur absolue appliquée.`);
+  if (indUnknown > 0) warnings.push(`${indUnknown} row(s) with an unreadable D/C indicator ignored.`);
+  if (negWithInd > 0) warnings.push(`${negWithInd} negative amount(s) despite the D/C indicator: absolute value applied.`);
 
   /* ── Élection de l'intitulé de compte ── */
   const totalAccts = new Set(entries.map(e => e.acct)).size;
@@ -648,14 +650,14 @@ function parseCsv(lines: string[], delim: string, entity: string, opts: ParseOpt
     winner = mappedCand;
   } else {
     if (mappedCand)
-      warnings.push(`Colonne « ${header[mappedCand.idx]} » : libellé instable par compte — traitée comme un mémo, pas comme l'intitulé du compte.`);
+      warnings.push(`Column "${header[mappedCand.idx]}": label not stable per account — treated as a memo, not as the account name.`);
     winner = cands
       .filter(cd => !cd.mapped)
       .map(cd => ({ cd, s: cd.score(totalAccts) }))
       .filter(x => x.s.ok)
       .sort((a, b) => b.s.stability - a.s.stability || b.s.coverage - a.s.coverage)[0]?.cd;
     if (winner)
-      warnings.push(`Intitulés de compte détectés dans la colonne « ${header[winner.idx]} » (dépendance compte → libellé).`);
+      warnings.push(`Account names detected in column "${header[winner.idx]}" (account → label dependency).`);
   }
   const coaDict = winner ? winner.dict() : {};
   for (const e of entries) { const nm = coaDict[e.acct]; if (nm) e.header_text = nm; }
@@ -720,6 +722,7 @@ function detectGenre(entries: LedgerEntry[], docIdFrac = 0): "ledger" | "trial_b
    une fausse. */
 /** Familles d'axes analytiques, par ordre de priorité. Chaque entrée :
  *  [libellé lisible, alias d'en-tête normalisés]. */
+/* i18n:fr-ok-begin — axis header aliases: matching data, not output */
 export const ANALYTIC_AXES: Array<[string, string[]]> = [
   ["Business unit", ["bu", "businessunit", "business_unit", "uniteoperationnelle", "unitéopérationnelle", "division", "segment", "branche", "branch"]],
   ["Profit center", ["prctr", "profitcenter", "profit_center", "centredeprofit", "centre_de_profit"]],
@@ -732,6 +735,7 @@ export const ANALYTIC_AXES: Array<[string, string[]]> = [
   ["Analytic axis", ["analytique", "analytic", "dimension1", "dim1", "axe", "axeanalytique", "class", "classe", "tag", "categorie", "catégorie"]],
   ["Tax code", ["taxcode", "codetaxe", "mwskz", "vatcode", "tvacode", "taxkey"]],
 ];
+/* i18n:fr-ok-end */
 
 export const isCurrencyCode = (v: string): boolean =>
   /^[A-Za-z]{3}$/.test(v.trim()) || /^[€$£¥₣]$/.test(v.trim());
@@ -739,19 +743,19 @@ export const isCurrencyCode = (v: string): boolean =>
 function finish(format: "fec" | "csv", entries: LedgerEntry[], dropped: number,
                 warnings: string[], ccys: Map<string, number>,
                 coaDict: Record<string, string> = {}, docIdFrac = 0): ParseResult {
-  if (!entries.length) throw new ParseError("Aucune écriture exploitable trouvée dans le fichier.");
+  if (!entries.length) throw new ParseError("No usable entries found in the file.");
   const periods = entries.map(e => e.period).filter(Boolean).sort();
   const badCcy = [...ccys.keys()].filter(c => !isCurrencyCode(c));
   for (const b of badCcy) ccys.delete(b);
   if (badCcy.length) {
-    warnings.push(`Colonne devise ignorée : valeurs non monétaires (ex. « ${badCcy[0]} ») — probablement une colonne de taux de change. Devise non renseignée plutôt qu'inventée.`);
+    warnings.push(`Currency column ignored: non-monetary values (e.g. "${badCcy[0]}") — probably an exchange-rate column. Currency left unset rather than invented.`);
     for (const e of entries) if (e.ccy && !isCurrencyCode(e.ccy)) e.ccy = "";
   }
   const currency = [...ccys.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? (badCcy.length ? "" : "EUR");
-  if (ccys.size > 1) warnings.push(`Plusieurs devises détectées (${[...ccys.keys()].join(", ")}) ; ${currency} retenue comme devise principale.`);
+  if (ccys.size > 1) warnings.push(`Several currencies detected (${[...ccys.keys()].join(", ")}); ${currency} kept as the main currency.`);
   const totDr = entries.reduce((a, e) => a + e.dr, 0), totCr = entries.reduce((a, e) => a + e.cr, 0);
   if (Math.abs(totDr - totCr) > Math.max(1, (totDr + totCr) * 0.001))
-    warnings.push(`Déséquilibre débit/crédit : ${totDr.toFixed(2)} vs ${totCr.toFixed(2)} (export partiel ou balance plutôt que grand livre ?).`);
+    warnings.push(`Debit/credit imbalance: ${totDr.toFixed(2)} vs ${totCr.toFixed(2)} (partial export, or a trial balance rather than a general ledger?).`);
   return {
     format, entries,
     entities: [...new Set(entries.map(e => e.entity))].filter(Boolean),
@@ -774,10 +778,10 @@ export function parseLedger(content: string, entity = "ENTITY", opts: ParseOpts 
   const text = content.replace(/^\uFEFF/, "");
   const lines = text.split(/\r?\n/);
   const firstIdx = lines.findIndex(l => l.trim());
-  if (firstIdx < 0) throw new ParseError("Fichier vide.");
+  if (firstIdx < 0) throw new ParseError("Empty file.");
   const body = lines.slice(firstIdx);
   const delim = detectDelimiter(body[0]);
   const header = splitLine(body[0], delim);
-  if (header.length < 3) throw new ParseError("En-tête non reconnue (moins de 3 colonnes).");
+  if (header.length < 3) throw new ParseError("Header not recognized (fewer than 3 columns).");
   return looksLikeFec(header) ? parseFec(body, delim, entity) : parseCsv(body, delim, entity, opts);
 }

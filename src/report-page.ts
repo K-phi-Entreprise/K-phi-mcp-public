@@ -29,9 +29,9 @@ const gauge = (k: Kpi): string => {
   return `<span style="display:inline-block;width:70px;height:6px;background:#2c2b30;border-radius:3px;vertical-align:middle"><span style="display:block;width:${Math.round(f * 100)}%;height:6px;background:${color(k)};border-radius:3px"></span></span>`;
 };
 const GROUPS: Array<[string, string[]]> = [
-  ["📈 Rentabilité", ["revenue","gross_profit","ebitda","ebitda_margin","operating_income","net_income","net_margin","roe"]],
-  ["💧 Trésorerie & cycle", ["cash","working_capital","dso","dpo","dio","ccc"]],
-  ["🏦 Structure & dette", ["total_assets","total_equity","total_debt","net_debt_ebitda","net_debt_ebitda_net","debt_to_equity","dscr","interest_coverage","current_ratio","quick_ratio"]],
+  ["📈 Profitability", ["revenue","gross_profit","ebitda","ebitda_margin","operating_income","net_income","net_margin","roe"]],
+  ["💧 Cash & working-capital cycle", ["cash","working_capital","dso","dpo","dio","ccc"]],
+  ["🏦 Structure & debt", ["total_assets","total_equity","total_debt","net_debt_ebitda","net_debt_ebitda_net","debt_to_equity","dscr","interest_coverage","current_ratio","quick_ratio"]],
 ];
 const BANDS: Record<string, [number, number, boolean]> = {
   ebitda_margin: [15, 5, true], net_margin: [8, 2, true], roe: [10, 5, true],
@@ -41,7 +41,7 @@ const BANDS: Record<string, [number, number, boolean]> = {
   current_ratio: [1.5, 1.0, true], quick_ratio: [1.0, 0.7, true],
 };
 const refCell = (k: Kpi, loc?: string): string => {
-  if (k.threshold !== undefined) return `${loc === "fr" ? "seuil" : "threshold"} ${k.threshold} <span style="color:#898781">(covenant)</span>`;
+  if (k.threshold !== undefined) return `${loc === "fr" ? "seuil" /* i18n:fr-ok */ : "threshold"} ${k.threshold} <span style="color:#898781">(covenant)</span>`;
   const b = BANDS[k.id]; if (!b) return "—";                 /* montants : pas de seuil */
   const [g, , up] = b;
   const u = k.unit === "%" ? " %" : k.unit === "days" ? " j" : k.unit === "x" ? "x" : "";
@@ -69,6 +69,18 @@ function trendArrow(id: string, series: NonNullable<AnalysisResult["series"]>): 
   return mb > ma ? `<span style="color:#1baf7a;font-size:13px"> ↗</span>` : `<span style="color:#d03b3b;font-size:13px"> ↘</span>`;
 }
 
+/* Engine labels are English; the fr dashboard maps them back by id. */
+/* i18n:fr-ok-begin */
+const FR_LABELS: Record<string, string> = {
+  revenue: "Chiffre d'affaires", gross_profit: "Marge brute", ebitda: "EBITDA", ebitda_margin: "Marge d'EBITDA",
+  operating_income: "Résultat d'exploitation", net_income: "Résultat net", net_margin: "Marge nette",
+  cash: "Trésorerie", working_capital: "BFR", dso: "DSO", dpo: "DPO", dio: "DIO", ccc: "Cycle de conversion",
+  total_debt: "Dette financière", net_debt_ebitda: "Dette / EBITDA", net_debt_ebitda_net: "Dette nette / EBITDA",
+  debt_to_equity: "Dette / Fonds propres", dscr: "DSCR", interest_coverage: "Couverture des intérêts",
+  current_ratio: "Ratio de liquidité", quick_ratio: "Liquidité réduite", total_assets: "Total actif",
+  total_equity: "Fonds propres", roe: "ROE",
+};
+/* i18n:fr-ok-end */
 const EN_LABELS: Record<string, string> = {
   revenue: "Revenue", gross_profit: "Gross profit", ebitda: "EBITDA", ebitda_margin: "EBITDA margin",
   operating_income: "Operating income", net_income: "Net income", net_margin: "Net margin", roe: "ROE",
@@ -96,7 +108,9 @@ const I18N = {
         projCash: "Projected collections (cash)", noD: "scopes excluded (implied DSO out of range)",
         noBudget: "No budget loaded: the K-Φ engine does not extrapolate future revenue — a sales forecast is a client decision, never invented. The projection unwinds your existing receivables and payables into cash; that is what the gray bars show. Load a budget in K-Φ to project revenue too.",
         methWc: "Working-capital mechanics", methDefault: "Engine projection (trend + working capital) — details in K-Φ",
+        dayU: "d", derivedGl: "(derived from the scope's GL)",
         obs: "GL-observed", fb: "fallback", recv: "Receivables", pay: "Payables" },
+  /* i18n:fr-ok-begin */
   fr: { title: "Analyse", link24: "lien 24 h", open: "Ouvrir dans K-Φ →", openLong: "Ouvrir l'analyse détaillée dans K-Φ →",
         caveats: "Réserves de lecture", caveatConso: "Conso = somme simple des entités, flux intercos non éliminés.",
         caveatCcy: "Plusieurs devises détectées", caveatTail: "Le forecast et les ratios en héritent.",
@@ -115,19 +129,21 @@ const I18N = {
         projCash: "Encaissements projetés", noD: "périmètres écartés (DSO implicite hors plage)",
         noBudget: "Aucun budget chargé : le moteur K-Φ n'extrapole pas le CA futur — une prévision de ventes est une décision client, jamais inventée. La projection déroule vos créances et dettes existantes en trésorerie : c'est ce que montrent les barres grises. Chargez un budget dans K-Φ pour projeter aussi le CA.",
         methWc: "Mécanique BFR", methDefault: "Projection moteur (tendance + BFR) — détail dans K-Φ",
+        dayU: "j", derivedGl: "(dérivés du GL du périmètre)",
         obs: "observé GL", fb: "repli", recv: "Créances", pay: "Fournisseurs" },
+  /* i18n:fr-ok-end */
 };
 
 export function renderReport(analysisId: string, r: AnalysisResult): string {
   const T = I18N[r.locale === "fr" ? "fr" : "en"];
   const CCY = safeCcy(r.detected.currency);
-  const lbl = (k: Kpi) => (r.locale === "fr" ? k.label : (EN_LABELS[k.id] ?? k.label));
+  const lbl = (k: Kpi) => (r.locale === "fr" ? (FR_LABELS[k.id] ?? k.label) : (EN_LABELS[k.id] ?? k.label));
   const byId = new Map(r.kpis.map(k => [k.id, k]));
   const tiles = ["revenue", "ebitda_margin", "dso", "net_debt_ebitda"]
     .map(id => byId.get(id)).filter((k): k is Kpi => !!k);
   const covs = r.kpis.filter(k => k.status);
   const multiCcy = /,/.test(r.detected.currency ?? "");
-  const consoNote = r.notes.find(n => /multi-entités/.test(n));
+  const consoNote = r.notes.find(n => /^Multi-entity preview|multi-entités/.test(n)); /* i18n:fr-ok */
   const series = (r.series ?? []).filter(s => s.revenue !== undefined);
   const caveats: string[] = [];
   const Tc = I18N[r.locale === "fr" ? "fr" : "en"];
@@ -175,7 +191,7 @@ td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
-<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>
+<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>  /* i18n:fr-ok */
 <button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}<span class="mut" id="grpTag" style="font-size:12.5px;font-weight:400;display:none">&nbsp;— ${T.groupLevel}</span>
@@ -213,7 +229,7 @@ ${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:cent
 ${r.forecast || series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.scoped}
 <span><button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> <button class="mbtn" id="bS" onclick="cmode('S')">${T.pies}</button></span></h2>
 <div class="chartbox sk" id="box2"><canvas id="c2"></canvas><div id="sk" style="display:none;overflow:auto;height:100%"></div></div>` : ""}
-<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · réf. ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>
+<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · ${r.locale === "fr" ? "réf." : "ref."} ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>  /* i18n:fr-ok */
 <h2>${T.kpi}</h2>
 ${(() => {
   const ids0 = GROUPS[0][1];
@@ -232,9 +248,9 @@ ${(() => {
   }).join("") + (rest.length ? `<tr><td colspan="4" style="color:#b7b5af;font-weight:600;padding-top:14px">${T.other}</td></tr>` + rest.map(row).join("") : "");
   return tiles0 + (tbl ? `<table><tr><th></th><th class="r">${T.value}</th><th class="r">${T.gauge}</th><th class="r">${T.ref}</th></tr>${tbl}</table>` : "");
 })()}
-<div class="mut" style="font-size:12px;margin-top:6px">${r.locale === "fr"
+<div class="mut" style="font-size:12px;margin-top:6px">${r.locale === "fr" /* i18n:fr-ok-begin */
   ? "Références génériques mid-market — un secteur ne se déduit pas fiablement d'un grand livre seul. Précisez le vôtre dans K-Φ, ou passez vos seuils réels en covenants : ils remplacent la référence."
-  : "Generic mid-market reference bands — an industry cannot be reliably inferred from a ledger alone. Set yours in K-Φ, or pass your real thresholds as covenants: they replace the reference."}</div>
+  : "Generic mid-market reference bands — an industry cannot be reliably inferred from a ledger alone. Set yours in K-Φ, or pass your real thresholds as covenants: they replace the reference." /* i18n:fr-ok-end */}</div>
 <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px">
 <a class="cta" style="margin-top:0" href="/a/${esc(analysisId)}/open">${T.openLong}</a>
 <span class="mut">${esc(T.cta_tail)}</span>
@@ -342,7 +358,7 @@ draw();
    grand vide (régression vue en prod). */
 window.addEventListener('load',function(){try{if(typeof draw2==='function')draw2();}catch(e){}});</script>` : ""}
 
-<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
+<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, dayU: T.dayU, derivedGl: T.derivedGl, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,CH2=null,DDIM='l';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
@@ -473,7 +489,7 @@ function fcdraw(){
     const ps=Object.entries(m.dpo_by_entity||{});
     if(ps.length)cards+=card(FT.pay,'DPO/entity: '+ps.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));}
   const rows=sc.series||[];
-  if(rows.length&&rows[0].impliedDSO!==undefined)if(okD(rows[0].impliedDSO))cards+=card(FT.methWc,'impliedDSO '+Math.round(rows[0].impliedDSO)+' j · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' j':'—')+' (dérivés du GL du périmètre)');
+  if(rows.length&&rows[0].impliedDSO!==undefined)if(okD(rows[0].impliedDSO))cards+=card(FT.methWc,'impliedDSO '+Math.round(rows[0].impliedDSO)+' '+FT.dayU+' · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' '+FT.dayU:'—')+' '+FT.derivedGl);
   box.innerHTML=cards||card('—',FT.methDefault);
   /* projection sur le graphique principal : ventes projetées en gris (données moteur, jamais recalculées) */
   if(typeof S!=='undefined'&&typeof draw==='function'){

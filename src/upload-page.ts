@@ -61,8 +61,8 @@ h1{font-size:30px;margin:0;letter-spacing:-.5px}
 .done-box .h{font-size:20px;margin-bottom:10px}
 kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospace,monospace;font-size:14px}
 </style></head><body><div class="wrap">
-<header><h1>K-Φ — Secure upload</h1><span class="sub">Single-use link · valid 15 minutes · the file goes straight to the K-Φ engine, not through Claude</span></header>
-<ol class="steps"><li id="s1" class="cur"><b>1</b> Select your export</li><li id="s2"><b>2</b> Send it to K-Φ</li><li id="s3"><b>3</b> Open your dashboard — or reply “done” in Claude</li></ol>
+<header><h1>K-Φ — Secure upload</h1><span class="sub">Single-use link · valid 15 minutes · the file goes straight to the K-Φ engine, not through your assistant</span></header>
+<ol class="steps"><li id="s1" class="cur"><b>1</b> Select your export</li><li id="s2"><b>2</b> Send it to K-Φ</li><li id="s3"><b>3</b> Open your dashboard — or reply “done” in your assistant’s chat</li></ol>
 <div class="cols">
 <div style="min-width:0;display:flex;flex-direction:column">
 <label class="drop" id="dz"><span class="ic">📄</span><span class="big" id="dzl">Drop your ledger export here</span><span class="mut">or click to browse — up to 500 MB</span><input type="file" id="f"></label>
@@ -90,7 +90,7 @@ kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospac
 <li>Your covenant thresholds, if any (DSCR, net debt/EBITDA, gearing)</li>
 <li>Your period-end date, if it isn't obvious from the file</li>
 </ul>
-<div class="sub" lang="fr" style="font-size:13px;border-top:1px solid #2c2b30;padding-top:12px">Export comptable brut (grand livre, balance, FEC) — CSV/TSV, jusqu'à 500 Mo. Aucun nettoyage préalable : K-Φ détecte les colonnes. Lien à usage unique, 15 min.</div>
+<div class="sub" style="font-size:13px;border-top:1px solid #2c2b30;padding-top:12px">Raw accounting export (general ledger, trial balance, FEC) — CSV/TSV, up to 500 MB. No cleanup needed: K-Φ detects the columns. Single-use link, 15 min.</div>
 </aside>
 </div></div>
 <script>
@@ -120,8 +120,7 @@ go.addEventListener('click',function(){
       msg.innerHTML='<div class="done-box" id="db"><div class="h"><span class="ok">✅ File received by K-Φ.</span></div>'+
         '<div id="wait"><div class="ind"></div>'+
         '<div><span class="spin"></span><b id="ph">Reading and mapping your columns…</b></div>'+
-        '<div class="phase" id="phsub">Large exports take a little longer — this page updates by itself. '+
-        '<span lang="fr">Cette page se met à jour toute seule.</span></div></div></div>';
+        '<div class="phase" id="phsub">Large exports take a little longer — this page updates by itself.</div></div></div>';
       /* Étapes réelles du moteur, dans l'ordre où elles se produisent : le
          texte suit le temps écoulé, il ne prétend pas connaître un
          pourcentage que le serveur ne fournit pas. */
@@ -149,18 +148,16 @@ go.addEventListener('click',function(){
               document.getElementById('wait').innerHTML=
                 '<b>Your dashboard is ready.</b><br><br>'+
                 '<a class="btn" style="display:block;text-align:center;text-decoration:none;padding:15px" href="/a/'+id+'">Open the K-Φ dashboard →</a>'+
-                '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in Claude.</div>'+
-                '<div class="sub" lang="fr" style="margin-top:12px">Tableau de bord prêt. Pour ramener les chiffres dans la conversation, répondez <kbd>done</kbd> dans Claude.</div>';
+                '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in your assistant\'s chat.</div>';
             } else if(j.status==='error'||tries>40){
               clearInterval(poll);clearInterval(phTimer);
               document.getElementById('wait').innerHTML=
-                'Upload complete. Reply <kbd>done</kbd> in your Claude conversation to get the analysis.'+
-                '<div class="sub" lang="fr" style="margin-top:10px">Fichier reçu : répondez <kbd>done</kbd> dans Claude.</div>';
+                'Upload complete. Reply <kbd>done</kbd> in your assistant\'s chat to get the analysis.';
             }
           }).catch(function(){});
         },3000);
       } else {
-        document.getElementById('wait').innerHTML='Reply <kbd>done</kbd> in your Claude conversation to get the analysis.';
+        document.getElementById('wait').innerHTML='Reply <kbd>done</kbd> in your assistant\'s chat to get the analysis.';
       }
     }else{
       var e;try{e=JSON.parse(x.responseText).error;}catch(_){e=x.status+' '+x.statusText;}

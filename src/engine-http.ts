@@ -67,9 +67,9 @@ export class KphiHttpEngine implements AnalysisEngine {
     const cap = this.cfg.maxSandboxEntries ?? Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000);
     if (parsed.entries.length > cap)
       throw new LimitError(
-        `L'analyse anonyme est limitée à ${cap.toLocaleString("fr-FR")} écritures ; ce fichier en contient ` +
-        `${parsed.entries.length.toLocaleString("fr-FR")}. Agrégez l'export (ex. balance mensuelle par compte, ` +
-        `ou un exercice à la fois), ou créez un compte K-Φ pour l'import complet.`);
+        `Anonymous analysis is limited to ${cap.toLocaleString("en-US")} entries; this file contains ` +
+        `${parsed.entries.length.toLocaleString("en-US")}. Aggregate the export (e.g. monthly trial balance by account, ` +
+        `or one fiscal year at a time), or create a K-Φ account for the full import.`);
     const sb = await this.createSandbox();
 
     // Modèle K-Phi : UNE version = UN mois, nommée YYYY-MM. C'est ce que fait
@@ -163,21 +163,21 @@ export class KphiHttpEngine implements AnalysisEngine {
         const ents = parsed.entities.length, accts = Object.keys(parsed.coa_dict ?? {}).length;
         const pers = periods.length;
         result.notes.push(
-          `Volume : ${n.toLocaleString("fr-FR")} écritures · ${accts} comptes · ${ents > 1 ? `${ents} entités · ` : ""}${pers} périodes. ` +
-          `Ces états, les 30 KPI et les DSO/DPO par périmètre ont été recalculés depuis les écritures, de façon déterministe et reproductible — ` +
-          `le même fichier redonnera exactement les mêmes chiffres.`);
+          `Volume: ${n.toLocaleString("en-US")} entries · ${accts} accounts · ${ents > 1 ? `${ents} entities · ` : ""}${pers} periods. ` +
+          `These statements, the 30 KPIs and the per-scope DSO/DPO were recomputed from the entries, deterministically and reproducibly — ` +
+          `the same file will give exactly the same figures.`);
       }
     }
     result.analytic_axis = parsed.analytic_axis;
     result.analytic_axes = parsed.analytic_axes;
     if ((parsed.analytic_axes?.length ?? 0) > 1) {
       const others = parsed.analytic_axes.filter(a => a.column !== parsed.analytic_axis?.column).map(a => a.label);
-      result.notes.push(`Axe analytique utilisé : ${parsed.analytic_axis?.label} (colonne « ${parsed.analytic_axis?.column} »). Autres axes détectés dans cet export : ${others.join(", ")} — relancez avec analytic_axis="<axe>" pour découper dessus.`);
+      result.notes.push(`Analytic axis used: ${parsed.analytic_axis?.label} (column "${parsed.analytic_axis?.column}"). Other axes detected in this export: ${others.join(", ")} — call again with analytic_axis="<axis>" to split on it.`);
     }
     result.report_version = "1.1";
     result.locale = input.locale === "fr" ? "fr" : "en";
     if (fcRulesSeeded > 0)
-      result.notes.push(`Règles de flux générées automatiquement de la classification du GL (${fcRulesSeeded} règles : créances→DSO, fournisseurs→DPO, intérêts, taxes, paie) — les DSO/DPO appliqués sont dérivés des écritures du périmètre ; ajustables dans K-Φ.`);
+      result.notes.push(`Flow rules generated automatically from the GL classification (${fcRulesSeeded} rules: receivables→DSO, payables→DPO, interest, taxes, payroll) — the DSO/DPO applied are derived from the scope's entries; adjustable in K-Φ.`);
     // Lien signé 24 h, lecture seule, ouvre le tenant dans l'app sans login.
     const open_url = await this.openLink(sb.tenantId).catch(e => { console.error("open-link failed", e); return undefined; });
     result.sandbox = { tenant_id: sb.tenantId, tenant_name: sb.name, ver: last, open_url };
@@ -186,7 +186,7 @@ export class KphiHttpEngine implements AnalysisEngine {
 
   async analyzeFromStorage(storageKey: string, opts: Omit<AnalyzeInput, "content">): Promise<AnalysisResult> {
     if (!this.cfg.storageRead)
-      throw new EngineError("analyzeFromStorage: stockage objet non configuré sur ce déploiement");
+      throw new EngineError("analyzeFromStorage: object storage not configured on this deployment");
     const content = await this.cfg.storageRead(storageKey);
     return this.analyze({ content, ...opts } as AnalyzeInput);
   }
@@ -325,28 +325,28 @@ interface StatementsPayload {
  * Les noms secondaires restent en repli au cas où kpi.js évolue.
  */
 const KPI_SPEC: Array<{ id: string; label: string; unit: string; keys: string[]; na?: string }> = [
-  { id: "revenue",         label: "Chiffre d'affaires",   unit: "CCY",   keys: ["Net Revenue", "revenue", "_rev"] },
-  { id: "gross_profit",    label: "Marge brute",          unit: "CCY",   keys: ["Gross Profit", "_gross"] },
+  { id: "revenue",         label: "Revenue",              unit: "CCY",   keys: ["Net Revenue", "revenue", "_rev"] },
+  { id: "gross_profit",    label: "Gross profit",         unit: "CCY",   keys: ["Gross Profit", "_gross"] },
   { id: "ebitda",          label: "EBITDA",               unit: "CCY",   keys: ["EBITDA", "_ebitda"] },
-  { id: "ebitda_margin",   label: "Marge d'EBITDA",       unit: "%",     keys: ["ebitdaMargin"] },
-  { id: "operating_income",label: "Résultat d'exploitation", unit: "CCY", keys: ["Operating Income", "_opInc"] },
-  { id: "net_income",      label: "Résultat net",         unit: "CCY",   keys: ["Net Income", "_ni"] },
-  { id: "net_margin",      label: "Marge nette",          unit: "%",     keys: ["netMargin"] },
-  { id: "cash",            label: "Trésorerie",           unit: "CCY",   keys: ["_cash", "Opening Cash"] },
-  { id: "working_capital", label: "BFR",                  unit: "CCY",   keys: ["workingCapital"] },
+  { id: "ebitda_margin",   label: "EBITDA margin",        unit: "%",     keys: ["ebitdaMargin"] },
+  { id: "operating_income",label: "Operating income",     unit: "CCY", keys: ["Operating Income", "_opInc"] },
+  { id: "net_income",      label: "Net income",           unit: "CCY",   keys: ["Net Income", "_ni"] },
+  { id: "net_margin",      label: "Net margin",           unit: "%",     keys: ["netMargin"] },
+  { id: "cash",            label: "Cash",                 unit: "CCY",   keys: ["_cash", "Opening Cash"] },
+  { id: "working_capital", label: "Working capital",      unit: "CCY",   keys: ["workingCapital"] },
   { id: "dso",             label: "DSO",                  unit: "days",  keys: ["dso"], na: "_dsoNA" },
   { id: "dpo",             label: "DPO",                  unit: "days",  keys: ["dpo"], na: "_dpoNA" },
   { id: "dio",             label: "DIO",                  unit: "days",  keys: ["dio"], na: "_dioNA" },
-  { id: "ccc",             label: "Cycle de conversion",  unit: "days",  keys: ["ccc"] },
-  { id: "total_debt",      label: "Dette financière",     unit: "CCY",   keys: ["_totalDebt"] },
-  { id: "net_debt_ebitda", label: "Dette / EBITDA",       unit: "x",     keys: ["debtToEbitda"] },
-  { id: "debt_to_equity",  label: "Dette / Fonds propres", unit: "x",    keys: ["debtToEquity"] },
+  { id: "ccc",             label: "Cash conversion cycle", unit: "days",  keys: ["ccc"] },
+  { id: "total_debt",      label: "Financial debt",       unit: "CCY",   keys: ["_totalDebt"] },
+  { id: "net_debt_ebitda", label: "Debt / EBITDA",        unit: "x",     keys: ["debtToEbitda"] },
+  { id: "debt_to_equity",  label: "Debt / Equity",        unit: "x",    keys: ["debtToEquity"] },
   { id: "dscr",            label: "DSCR",                 unit: "x",     keys: ["dscr"] },
-  { id: "interest_coverage", label: "Couverture des intérêts", unit: "x", keys: ["interestCoverage"] },
-  { id: "current_ratio",   label: "Ratio de liquidité",   unit: "x",     keys: ["currentRatio"] },
-  { id: "quick_ratio",     label: "Liquidité réduite",    unit: "x",     keys: ["quickRatio"] },
-  { id: "total_assets",    label: "Total actif",          unit: "CCY",   keys: ["Total Assets", "_totalAssets"] },
-  { id: "total_equity",    label: "Fonds propres",        unit: "CCY",   keys: ["Total Equity", "_totalEquity"] },
+  { id: "interest_coverage", label: "Interest coverage",    unit: "x", keys: ["interestCoverage"] },
+  { id: "current_ratio",   label: "Current ratio",        unit: "x",     keys: ["currentRatio"] },
+  { id: "quick_ratio",     label: "Quick ratio",          unit: "x",     keys: ["quickRatio"] },
+  { id: "total_assets",    label: "Total assets",         unit: "CCY",   keys: ["Total Assets", "_totalAssets"] },
+  { id: "total_equity",    label: "Total equity",         unit: "CCY",   keys: ["Total Equity", "_totalEquity"] },
   { id: "roe",             label: "ROE",                  unit: "%",     keys: ["roe"] },
 ];
 
@@ -542,20 +542,20 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
     set("interest_coverage", ebitda / intFY);
     const cov = g("interest_coverage");
     if (cov) cov.formula = intPure
-      ? `EBITDA exercice ${F(ebitda)} ÷ intérêts purs exercice ${F(intFY)} (hors résultat de change)`
-      : `EBITDA exercice ${F(ebitda)} ÷ résultat financier net exercice ${F(intFY)} (intérêts non isolés par le moteur)`;
+      ? `FY EBITDA ${F(ebitda)} ÷ FY pure interest ${F(intFY)} (excluding FX result)`
+      : `FY EBITDA ${F(ebitda)} ÷ FY net financial result ${F(intFY)} (interest not isolated by the engine)`;
     const svc = intFY + stDebt * 0.1;
     set("dscr", ebitda / svc);
     const d = g("dscr");
-    if (d) d.formula = `EBITDA exercice ${F(ebitda)} ÷ (intérêts ${F(intFY)} + 10 % dette CT ${F(stDebt)}) — approximation sans échéancier de principal`;
-    if (stDebt > 0) notes.push("DSCR approximé : sans échéancier de remboursement, le service de la dette = intérêts + 10 % de la dette court terme.");
+    if (d) d.formula = `FY EBITDA ${F(ebitda)} ÷ (interest ${F(intFY)} + 10% short-term debt ${F(stDebt)}) — approximation without a principal repayment schedule`;
+    if (stDebt > 0) notes.push("DSCR approximated: without a repayment schedule, debt service = interest + 10% of short-term debt.");
   } else if (intSeen && (g("interest_coverage") || g("dscr"))) {
     /* pas d'intérêts dans l'exercice : un ratio de couverture n'a pas de sens */
     for (const id of ["interest_coverage", "dscr"]) { const i = kpis.findIndex(k => k.id === id); if (i >= 0) kpis.splice(i, 1); }
-    notes.push("Couverture des intérêts / DSCR non affichés : aucune charge d'intérêts détectée sur l'exercice.");
+    notes.push("Interest coverage / DSCR not shown: no interest expense detected in the fiscal year.");
   }
-  if (ebitda && debt !== undefined) { const k = g("net_debt_ebitda"); if (k) k.formula = `dette financière ${F(debt)} ÷ EBITDA exercice ${F(ebitda)}`; }
-  const covr = g("ebitda_margin"); if (covr && rev) covr.formula = `EBITDA exercice ÷ chiffre d'affaires exercice ${F(rev)}`;
+  if (ebitda && debt !== undefined) { const k = g("net_debt_ebitda"); if (k) k.formula = `financial debt ${F(debt)} ÷ FY EBITDA ${F(ebitda)}`; }
+  const covr = g("ebitda_margin"); if (covr && rev) covr.formula = `FY EBITDA ÷ FY revenue ${F(rev)}`;
   // Les ratios en % arrivent en fraction (0.22) : normalisés ici, une seule fois.
   for (const k of kpis) if (k.unit === "%" && Math.abs(k.value) <= 5) k.value = k.value * 100;
   for (const k of kpis) k.value = Math.round(k.value * 100) / 100;
@@ -572,25 +572,24 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
   const rw = Array.isArray(posR._warnings) ? posR._warnings as Array<{ metric?: string; msg?: string }> : [];
   for (const d of rw) {
     if (d?.metric === "Consolidation") {
-      if (parsed.entities.length > 1) notes.push("Aperçu multi-entités : les chiffres ci-dessous sont une SOMME SIMPLE — aucune conversion de change, " +
-        "aucune élimination interco, quelle que soit la voie d'entrée du fichier. Les vues par entité (forecast, " +
-        "méthodes DSO/DPO) restent chacune en devise locale et sont fiables telles quelles. La consolidation " +
-        "complète (FX à vos taux, rapprochement et élimination intercos) est une ÉTAPE DISTINCTE, dans la " +
-        "plateforme K-Φ, après avoir réclamé cette analyse (30 j gratuits, même tenant). " +
-        "Les chiffres agrégés ci-dessous sont une somme simple (pas d'élimination des flux " +
-        "intercos). Pour une consolidation complète, définissez la structure de groupe dans K-Φ " +
-        "(Réglages → Organisation → Structure de groupe).");
+      if (parsed.entities.length > 1) notes.push("Multi-entity preview: the figures below are a SIMPLE SUM — no FX conversion, " +
+        "no intercompany elimination, whatever the file's input path. Per-entity views (forecast, " +
+        "DSO/DPO methods) each stay in local currency and are reliable as-is. Full consolidation " +
+        "(FX at your own rates, intercompany matching and elimination) is a SEPARATE STEP, in the " +
+        "K-Φ platform, after claiming this analysis (30 days free, same tenant). " +
+        "To set it up, define the group structure in K-Φ " +
+        "(Settings → Organization → Group structure).");
     } else if (d?.msg) {
-      notes.push(`${d.metric ? d.metric + " — " : ""}${d.msg} (réglable dans K-Φ)`);
+      notes.push(`${d.metric ? d.metric + " — " : ""}${d.msg} (adjustable in K-Φ)`);
     }
   }
   // Devise : le moteur/parseur retiennent une devise unique tant qu'aucun
   // mapping multi-devises n'est configuré. Vrai par défaut, pas une erreur.
   for (const w of parsed.warnings) {
-    if (/devise|currency/i.test(w)) notes.push(`${w} Affinable dans K-Φ si vos comptes couvrent plusieurs devises.`);
+    if (/devise|currency/i.test(w)) notes.push(`${w} Refinable in K-Φ if your accounts span several currencies.`);
     else alerts.push(w);   // ex. déséquilibre DR/CR : un vrai problème de fichier
   }
-  if (nMonths > 1) notes.push(`Exercice : P&L sommé sur ${nMonths} mois (${parsed.period_from} → ${parsed.period_to}), bilan au ${parsed.period_to}.`);
+  if (nMonths > 1) notes.push(`Fiscal year: P&L summed over ${nMonths} months (${parsed.period_from} → ${parsed.period_to}), balance sheet as of ${parsed.period_to}.`);
 
   /* ── Garde de genre : une balance ne porte pas le détail des écritures ──
      Placée AVANT les covenants : un covenant DSCR sur une balance doit
@@ -602,19 +601,19 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
     const iDscr = kpis.findIndex(k => k.id === "dscr");
     if (iDscr >= 0) {
       kpis.splice(iDscr, 1);
-      alerts.push("DSCR non calculé : l'export est une balance (soldes par compte et période), " +
-        "pas un grand livre — ce ratio exige le détail des écritures (service de la dette, flux).");
+      alerts.push("DSCR not computed: the export is a trial balance (balances by account and period), " +
+        "not a general ledger — this ratio requires entry-level detail (debt service, flows).");
     }
     if (kpis.some(k => ["dso", "dpo", "dio", "ccc"].includes(k.id)))
-      notes.push("DSO/DPO/DIO/CCC calculés sur les soldes de la balance (pas de détail facture) : " +
-        "des ordres de grandeur, pas des délais réels de règlement.");
+      notes.push("DSO/DPO/DIO/CCC computed from trial-balance balances (no invoice detail): " +
+        "orders of magnitude, not actual settlement delays.");
   }
 
   for (const c of input.covenants ?? []) {
     const res = resolveCovenantMetric(c.name);
     if (!res) {
-      alerts.push(`Covenant « ${c.name} » : identifiant non reconnu. Identifiants acceptés : ${COVENANT_IDS} ` +
-        `(alias FR/EN tolérés, ex. Gearing, Dette nette/EBITDA, Couverture des intérêts).`);
+      alerts.push(`Covenant "${c.name}": identifier not recognized. Accepted identifiers: ${COVENANT_IDS} ` +
+        `(EN/FR aliases accepted, e.g. Gearing, Net debt/EBITDA, Interest coverage).`);
       continue;
     }
     let k = kpis.find(x => x.id === res.id);
@@ -626,17 +625,17 @@ function toAnalysisResult(parsed: ReturnType<typeof parseLedger>, position: Stat
       const debtV = kpis.find(x => x.id === "total_debt")?.value;
       const eb = kpis.find(x => x.id === "ebitda")?.value;
       if (cash !== undefined && debtV !== undefined && eb) {
-        const netK: Kpi = { id: "net_debt_ebitda_net", label: "Dette nette / EBITDA", unit: "x",
+        const netK: Kpi = { id: "net_debt_ebitda_net", label: "Net debt / EBITDA", unit: "x",
           value: (debtV - cash) / eb,
-          formula: `(dette ${Math.round(debtV).toLocaleString("fr-FR")} − trésorerie ${Math.round(cash).toLocaleString("fr-FR")}) ÷ EBITDA exercice` };
+          formula: `(debt ${Math.round(debtV).toLocaleString("en-US")} − cash ${Math.round(cash).toLocaleString("en-US")}) ÷ FY EBITDA` };
         kpis.push(netK); k = netK;
       }
     }
-    if (!k) { alerts.push(`Covenant « ${c.name} » (${res.id}) : KPI non calculable sur cet export.`); continue; }
+    if (!k) { alerts.push(`Covenant "${c.name}" (${res.id}): KPI not computable on this export.`); continue; }
     const ok = c.operator === ">=" ? k.value >= c.threshold : c.operator === ">" ? k.value > c.threshold
              : c.operator === "<=" ? k.value <= c.threshold : k.value < c.threshold;
     k.threshold = c.threshold; k.status = ok ? "ok" : "breach";
-    if (!ok) alerts.push(`${k.label} à ${k.value.toFixed(2)} ${k.unit}, hors seuil ${c.operator} ${c.threshold} — risque de breach covenant.`);
+    if (!ok) alerts.push(`${k.label} at ${k.value.toFixed(2)} ${k.unit}, outside threshold ${c.operator} ${c.threshold} — covenant breach risk.`);
   }
   for (const w of position.warnings ?? []) alerts.push(w);
 
@@ -656,22 +655,22 @@ function buildSummary(kpis: Kpi[], parsed: ReturnType<typeof parseLedger>, alert
   const g = (id: string) => kpis.find(k => k.id === id);
   const parts: string[] = [];
   const rev = g("revenue"), ebitda = g("ebitda"), margin = g("ebitda_margin"), cash = g("cash"), dscr = g("dscr");
-  if (rev) parts.push(`chiffre d'affaires ${fmt(rev)}`);
-  if (ebitda) parts.push(`EBITDA ${fmt(ebitda)}${margin ? ` (${margin.value.toFixed(1)} %)` : ""}`);
-  if (cash) parts.push(`trésorerie ${fmt(cash)}`);
-  const head = parts.length ? `**Synthèse** — ${parts.join(", ")}.` : `**Synthèse** — ${parsed.entries.length} écritures analysées sur ${parsed.period_from} → ${parsed.period_to}.`;
+  if (rev) parts.push(`revenue ${fmt(rev)}`);
+  if (ebitda) parts.push(`EBITDA ${fmt(ebitda)}${margin ? ` (${margin.value.toFixed(1)}%)` : ""}`);
+  if (cash) parts.push(`cash ${fmt(cash)}`);
+  const head = parts.length ? `**Summary** — ${parts.join(", ")}.` : `**Summary** — ${parsed.entries.length} entries analyzed over ${parsed.period_from} → ${parsed.period_to}.`;
   const breach = kpis.filter(k => k.status === "breach").map(k => k.label);
-  const vig = breach.length ? ` Point de vigilance : ${breach.join(", ")} hors covenant.` : dscr && dscr.value < 1.2 ? ` DSCR à ${dscr.value.toFixed(2)} : sous le seuil bancaire usuel de 1,2.` : "";
-  const warn = alerts.length && !breach.length ? ` ${alerts.length} avertissement(s) sur la qualité de l'export.` : "";
+  const vig = breach.length ? ` Watch point: ${breach.join(", ")} outside covenant.` : dscr && dscr.value < 1.2 ? ` DSCR at ${dscr.value.toFixed(2)}: below the usual bank threshold of 1.2.` : "";
+  const warn = alerts.length && !breach.length ? ` ${alerts.length} warning(s) on export quality.` : "";
   return head + vig + warn;
 }
 
 function fmt(k: Kpi): string {
-  if (k.unit === "%") return `${k.value.toFixed(1)} %`;
-  if (k.unit === "days") return `${Math.round(k.value)} j`;
-  if (k.unit === "months") return `${k.value.toFixed(1)} mois`;
+  if (k.unit === "%") return `${k.value.toFixed(1)}%`;
+  if (k.unit === "days") return `${Math.round(k.value)} d`;
+  if (k.unit === "months") return `${k.value.toFixed(1)} mo`;
   if (k.unit === "x") return `${k.value.toFixed(2)}x`;
-  try { return new Intl.NumberFormat("fr-FR", { style: "currency", currency: k.unit, maximumFractionDigits: 0 }).format(k.value); }
+  try { return new Intl.NumberFormat("en-US", { style: "currency", currency: k.unit, maximumFractionDigits: 0 }).format(k.value); }
   catch { return `${Math.round(k.value)} ${k.unit}`; }
 }
 

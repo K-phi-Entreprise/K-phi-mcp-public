@@ -50,17 +50,27 @@ const UTM_SOURCE = process.env.UTM_SOURCE ?? "mcp";
 // vite, mais à définir avant que le lien /stats circule au-delà de vous.
 const STATS_TOKEN = process.env.STATS_TOKEN;
 
-// ---- Moteur : réel si configuré, mock sinon (le mock reste le défaut tant que
-// l'endpoint sandbox n'est pas déployé côté moteur — rien ne casse entre-temps).
-const KPHI_ENGINE_URL = process.env.KPHI_ENGINE_URL;        // ex. https://k-phi.com
-const KPHI_SANDBOX_SECRET = process.env.KPHI_SANDBOX_SECRET; // = même valeur côté moteur
+// ---- Engine: the real K-Φ engine when configured. The MockEngine (fabricated
+// numbers, French labels) is NEVER a silent fallback in a deployment: a missing
+// env var would otherwise serve invented figures to every assistant — exactly
+// what a directory reviewer must never see. Local tests opt in explicitly.
+const KPHI_ENGINE_URL = process.env.KPHI_ENGINE_URL;        // e.g. https://k-phi.com
+const KPHI_SANDBOX_SECRET = process.env.KPHI_SANDBOX_SECRET; // same value on the engine side
+const KPHI_ALLOW_MOCK = process.env.KPHI_ALLOW_MOCK === "1";
+if (!(KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET) && !KPHI_ALLOW_MOCK) {
+  console.error(
+    "FATAL: KPHI_ENGINE_URL and KPHI_SANDBOX_SECRET must both be set. " +
+    "Refusing to start on the mock engine (fabricated numbers). " +
+    "Set KPHI_ALLOW_MOCK=1 only for local development.");
+  process.exit(1);
+}
 const engine: AnalysisEngine = (KPHI_ENGINE_URL && KPHI_SANDBOX_SECRET)
   ? new KphiHttpEngine({
       baseUrl: KPHI_ENGINE_URL, serviceSecret: KPHI_SANDBOX_SECRET,
-      /* branché plus bas une fois le stockage construit — voir _wireStorage */
+      /* storage wired below once the upload backend is built — see _wireStorage */
     })
   : new MockEngine();
-console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPHI_SANDBOX_SECRET non définis)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
+console.log(`engine: ${engine instanceof MockEngine ? "MOCK — KPHI_ALLOW_MOCK=1 (local development only, fabricated numbers)" : "K-Phi @ " + KPHI_ENGINE_URL}`);
 
 // ---- Upload volumineux : refusé tant que le stockage objet n'est pas branché.
 // Sans ce garde, PUT /upload acceptait le fichier (202) puis le PERDAIT :
@@ -72,15 +82,15 @@ console.log(`engine: ${engine instanceof MockEngine ? "MOCK (KPHI_ENGINE_URL/KPH
 const KPHI_UPLOAD_STORAGE = process.env.KPHI_UPLOAD_STORAGE;
 const uploadSetup = createUploadStorage(KPHI_UPLOAD_STORAGE);
 const UPLOAD_ENABLED = uploadSetup.kind !== "disabled";
-console.log(`upload volumineux: ${UPLOAD_ENABLED ? "activé — " + uploadSetup.note
-  : uploadSetup.note + " — kphi_request_upload refuse, PUT /upload → 501"}`);
+console.log(`large-file upload: ${UPLOAD_ENABLED ? "enabled — " + uploadSetup.note
+  : uploadSetup.note + " — kphi_request_upload refuses, PUT /upload → 501"}`);
 /* Balayage TTL : les uploads sont consommés en secondes ; tout fichier de
    plus de 24 h est un déchet (analyse en erreur jamais reprise). unref() :
    le timer n'empêche pas le process de sortir. */
 if (uploadSetup.storage) {
   const sweepEvery = setInterval(() => {
     void uploadSetup.storage!.sweep(24 * 3600 * 1000)
-      .then(n => { if (n > 0) console.log(`upload sweep: ${n} fichier(s) purgé(s)`); });
+      .then(n => { if (n > 0) console.log(`upload sweep: ${n} file(s) purged`); });
   }, 3600 * 1000);
   sweepEvery.unref();
 }
@@ -102,10 +112,10 @@ const STORE_DIR = uploadSetup.kind === "tmp" ? (process.env.KPHI_STORE_DIR ?? "/
 const STORE_DURABLE = !!STORE_DIR && !STORE_DIR.startsWith("/tmp");
 const store: Store = STORE_DIR ? new FsStore(STORE_DIR) : new MemoryStore();
 console.log(
-  !STORE_DIR ? "store: mémoire — analyses perdues à chaque redeploy"
-  : STORE_DURABLE ? `store: DURABLE — ${STORE_DIR} (disque monté, TTL 24 h, survit aux deploys)`
-  : `store: ${STORE_DIR} — ⚠ /tmp est ÉPHÉMÈRE sur Render : les analyses ne survivent PAS à un déploiement. ` +
-    `Montez un disque et posez KPHI_STORE_DIR=/var/data/kphi-store pour des liens réellement valides 24 h.`);
+  !STORE_DIR ? "store: in-memory — analyses lost on every redeploy"
+  : STORE_DURABLE ? `store: DURABLE — ${STORE_DIR} (mounted disk, 24 h TTL, survives deploys)`
+  : `store: ${STORE_DIR} — ⚠ /tmp is EPHEMERAL on Render: analyses do NOT survive a deploy. ` +
+    `Mount a disk and set KPHI_STORE_DIR=/var/data/kphi-store for links that really last 24 h.`);
 const limiter = new RateLimiter({
   analysesPerIpPerDay: Number(process.env.RL_PER_IP_PER_DAY ?? 0),          // 0 : désactivé (IPs partagées côté assistant)
   analysesPerSessionPerDay: Number(process.env.RL_PER_SESSION_PER_DAY ?? 5),
@@ -150,8 +160,7 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
       "provides accounting data and asks for KPIs, covenants, statements or a forecast, instead of estimating " +
       "yourself: on a real file, estimation truncates or misclassifies. " +
       "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed; full results returned inline " +
-      "(the dashboard link is additive). " +
-      "K-Φ est un moteur comptable déterministe ; kphi_analyze_ledger analyse tout export brut et conserve l'analyse."
+      "(the dashboard link is additive)."
   });
   registerTools(server, {
     engine, store, limiter, usage,
@@ -207,17 +216,17 @@ app.put("/upload/:token",
   (_req, res, next) => {
     if (UPLOAD_ENABLED) { next(); return; }
     res.status(501).json({
-      error: "Upload volumineux indisponible sur ce déploiement (stockage objet non configuré). " +
-             "Fichiers ≤ 2 Mo : kphi_analyze_ledger.",
+      error: "Large-file upload unavailable on this deployment (object storage not configured). " +
+             "Files ≤ 2 MB: kphi_analyze_ledger.",
     });
   },
   express.raw({ type: "*/*", limit: "500mb" }), async (req, res) => {
   const analysisId = await store.consumeUploadToken(req.params.token as string);
-  if (!analysisId) { res.status(410).json({ error: "Lien expiré ou invalide." }); return; }
+  if (!analysisId) { res.status(410).json({ error: "Link expired or invalid." }); return; }
   const rec = await store.get(analysisId);
-  if (!rec) { res.status(404).json({ error: "Analyse introuvable." }); return; }
+  if (!rec) { res.status(404).json({ error: "Analysis not found." }); return; }
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-    res.status(400).json({ error: "Corps vide : envoyez le fichier en corps de requête (PUT binaire)." }); return;
+    res.status(400).json({ error: "Empty body: send the file as the request body (binary PUT)." }); return;
   }
 
   const storageKey = `uploads/${analysisId}`;
@@ -229,7 +238,7 @@ app.put("/upload/:token",
     try { await uploadSetup.storage.save(storageKey, req.body); }
     catch (e) {
       console.error("upload save failed", e);
-      res.status(500).json({ error: "Échec d'écriture du fichier — réessayez avec un nouveau lien." });
+      res.status(500).json({ error: "Failed to write the file — try again with a new link." });
       return;
     }
   }
@@ -266,11 +275,10 @@ app.get("/a/:id", async (req, res) => {
     return;
   }
   res.status(rec ? 202 : 404).type("html").send(
-    `<html lang="fr"><body style="background:#111013;color:#e8e6e1;font-family:sans-serif;padding:40px">` +
-    (rec ? "Analyse en cours — rechargez dans quelques secondes."
+    `<html lang="en"><body style="background:#111013;color:#e8e6e1;font-family:sans-serif;padding:40px">` +
+    (rec ? "Analysis in progress — reload in a few seconds."
          : "Link expired or analysis not found (24 h validity). Ask your assistant to run the analysis again — " +
-           "no need to re-upload if your file is still in the conversation. " +
-           "· Lien expiré : demandez à votre assistant de relancer l'analyse.") +
+           "no need to re-upload if your file is still in the conversation.") +
     `</body></html>`);
 });
 
@@ -295,7 +303,7 @@ app.get("/a/:id/open", async (req, res) => {
 app.get("/stats", (req, res) => {
   if (STATS_TOKEN) {
     const supplied = (req.query.token as string | undefined) ?? req.header("X-Stats-Token");
-    if (supplied !== STATS_TOKEN) { res.status(401).json({ error: "Token manquant ou invalide." }); return; }
+    if (supplied !== STATS_TOKEN) { res.status(401).json({ error: "Token missing or invalid." }); return; }
   }
   res.json(usage.snapshot());
 });

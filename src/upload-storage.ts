@@ -70,11 +70,11 @@ export interface UploadStorageSetup {
 }
 
 export function createUploadStorage(spec: string | undefined): UploadStorageSetup {
-  if (!spec) return { kind: "disabled", note: "désactivé (KPHI_UPLOAD_STORAGE non défini)" };
+  if (!spec) return { kind: "disabled", note: "disabled (KPHI_UPLOAD_STORAGE not set)" };
   if (spec === "mock") return { kind: "mock", note: "mock (routage seulement, moteur mock)" };
   if (spec === "tmp" || spec.startsWith("tmp:")) {
     const dir = spec === "tmp" ? join(tmpdir(), "kphi-uploads") : spec.slice(4);
     return { kind: "tmp", storage: new FsUploadStorage(dir), note: `fichiers sous ${dir} (TTL 24 h)` };
   }
-  return { kind: "disabled", note: `valeur « ${spec} » non reconnue → upload DÉSACTIVÉ (backends : mock, tmp, tmp:/chemin)` };
+  return { kind: "disabled", note: `value "${spec}" not recognized → upload DISABLED (backends: mock, tmp, tmp:/path)` };
 }

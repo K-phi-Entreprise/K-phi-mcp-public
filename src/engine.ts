@@ -113,38 +113,39 @@ export class MockEngine implements AnalysisEngine {
     const dscrCov = input.covenants?.find(c => c.name.toUpperCase() === "DSCR");
     const dscr = 1.08;
     const kpis: Kpi[] = [
-      { id: "revenue", label: "Chiffre d'affaires", value: 3_420_000, unit: "EUR", delta_vs_previous: 0.11 },
-      { id: "ebitda", label: "EBITDA", value: 412_000, unit: "EUR", benchmark: "p55 secteur",
-        formula: "Résultat d'exploitation + dotations aux amortissements et provisions",
+      { id: "revenue", label: "Revenue", value: 3_420_000, unit: "EUR", delta_vs_previous: 0.11 },
+      { id: "ebitda", label: "EBITDA", value: 412_000, unit: "EUR", benchmark: "sector p55",
+        formula: "Operating income + depreciation, amortization and provisions",
         accounts_used: ["70x", "60x-65x", "681x"] },
-      { id: "ebitda_margin", label: "Marge d'EBITDA", value: 12.0, unit: "%" },
+      { id: "ebitda_margin", label: "EBITDA margin", value: 12.0, unit: "%" },
       { id: "dso", label: "DSO", value: 58, unit: "days", delta_vs_previous: 12,
-        formula: "Créances clients / CA TTC × 365", accounts_used: ["411x", "70x"] },
+        formula: "Trade receivables / gross revenue × 365", accounts_used: ["411x", "70x"] },
       { id: "dpo", label: "DPO", value: 41, unit: "days" },
-      { id: "working_capital", label: "BFR", value: 486_000, unit: "EUR" },
-      { id: "net_debt_ebitda", label: "Dette nette / EBITDA", value: 2.6, unit: "x" },
+      { id: "working_capital", label: "Working capital", value: 486_000, unit: "EUR" },
+      { id: "net_debt_ebitda", label: "Net debt / EBITDA", value: 2.6, unit: "x" },
       { id: "dscr", label: "DSCR", value: dscr, unit: "x",
-        formula: "(EBITDA − impôts − capex de maintenance) / service de la dette",
+        formula: "(EBITDA − taxes − maintenance capex) / debt service",
         accounts_used: ["16x", "661x", "695x"],
         ...(dscrCov ? { threshold: dscrCov.threshold, status: dscr >= dscrCov.threshold ? "ok" : "breach" } : {}) },
       { id: "cash_runway", label: "Cash runway", value: 7.4, unit: "months" },
     ];
     const alerts: string[] = [];
     if (dscrCov && dscr < dscrCov.threshold)
-      alerts.push(`DSCR sous le seuil de ${dscrCov.threshold} (${dscr}) — risque de breach covenant`);
-    alerts.push("DSO en hausse de 12 jours vs période précédente");
+      alerts.push(`DSCR below the ${dscrCov.threshold} threshold (${dscr}) — covenant breach risk`);
+    alerts.push("DSO up 12 days vs previous period");
 
     return {
       detected: { format: input.format_hint === "auto" ? "fec" : input.format_hint,
         chart_of_accounts: "PCG", currency: "EUR", period: "2025-01-01..2025-12-31", entries },
       kpis,
       alerts,
-      notes: ["Ces chiffres sont une somme simple multi-entités (pas d'élimination des flux intercos). " +
-        "Pour une consolidation complète, définissez la structure de groupe dans K-Φ."],
+      notes: ["MOCK ENGINE — fabricated sample data, not an analysis of your file.",
+        "These figures are a simple multi-entity sum (no intercompany elimination). " +
+        "For full consolidation, define the group structure in K-Φ."],
       summary_markdown:
-        "**Synthèse** — Activité en croissance (+11 %) avec une marge d'EBITDA de 12 %, " +
-        "dans la médiane du secteur. Point de vigilance : le DSCR (1,08) est sous le seuil " +
-        "bancaire habituel et le DSO se dégrade (+12 j). Runway de trésorerie ≈ 7 mois.",
+        "**Summary (MOCK)** — Growing activity (+11%) with a 12% EBITDA margin, " +
+        "in the sector median. Watch point: DSCR (1.08) is below the usual bank threshold " +
+        "and DSO is deteriorating (+12 d). Cash runway ≈ 7 months.",
     };
   }
 }

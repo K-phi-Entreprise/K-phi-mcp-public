@@ -39,11 +39,11 @@ export class RateLimiter {
   /** À appeler uniquement sur les opérations coûteuses (analyse), pas sur chaque requête MCP. */
   consumeAnalysis(ipAddr: string, sessionId: string): { ok: true } | { ok: false; reason: string } {
     if (this.cfg.analysesPerDayGlobal > 0 && !this.hit(this.global, "all", this.cfg.analysesPerDayGlobal))
-      return { ok: false, reason: "Le service d'analyse gratuit a atteint sa capacité du jour. Réessayez demain, ou créez un compte K-Φ." };
+      return { ok: false, reason: "The free analysis service has reached its daily capacity. Try again tomorrow, or create a K-Φ account." };
     if (this.cfg.analysesPerIpPerDay > 0 && !this.hit(this.ip, ipAddr, this.cfg.analysesPerIpPerDay))
-      return { ok: false, reason: "Quota journalier atteint pour cette adresse. Créez un compte K-Φ pour un accès illimité." };
+      return { ok: false, reason: "Daily quota reached for this address. Create a K-Φ account for unlimited access." };
     if (!this.hit(this.session, sessionId, this.cfg.analysesPerSessionPerDay))
-      return { ok: false, reason: "Quota journalier atteint pour cette session. Créez un compte K-Φ pour un accès illimité." };
+      return { ok: false, reason: "Daily quota reached for this session. Create a K-Φ account for unlimited access." };
     return { ok: true };
   }
 }

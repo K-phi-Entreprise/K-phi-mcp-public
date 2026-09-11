@@ -206,7 +206,7 @@ test("analyzeFromStorage : lit le fichier via storageRead et aboutit à une anal
 test("analyzeFromStorage sans lecteur : EngineError explicite, jamais un fichier perdu en silence", async () => {
   await assert.rejects(
     engine().analyzeFromStorage("uploads/x", { format_hint: "generic", locale: "fr" }),
-    (e) => e instanceof EngineError && /non configuré/.test(e.message));
+    (e) => e instanceof EngineError && /not configured/.test(e.message));
 });
 
 test("cap d'écritures : LimitError claire, sans préfixe « Impossible de lire »", async () => {
@@ -214,7 +214,7 @@ test("cap d'écritures : LimitError claire, sans préfixe « Impossible de lire 
   const e = new KphiHttpEngine({ baseUrl: "https://engine.test", serviceSecret: "s", retryDelayMs: 5, maxSandboxEntries: 2 });
   await assert.rejects(
     e.analyze({ content: LEDGER, format_hint: "generic", locale: "fr" }),
-    (err) => err instanceof LimitError && /limitée à 2/.test(err.message));
+    (err) => err instanceof LimitError && /limited to 2/.test(err.message));
   const d = describeAnalysisError(new LimitError("L'analyse anonyme est limitée à 2 écritures."), "an_9");
   assert.doesNotMatch(d.text, /Impossible de lire/);
   assert.match(d.text, /limitée/);
@@ -288,9 +288,9 @@ test("covenants de bout en bout : Gearing évalué, dette NETTE calculée (dette
   const cash = r.kpis.find(k => k.id === "cash"), debt = r.kpis.find(k => k.id === "total_debt"), eb = r.kpis.find(k => k.id === "ebitda");
   if (net && cash && debt && eb) {
     assert.ok(Math.abs(net.value - (debt.value - cash.value) / eb.value) < 1e-9, "sémantique nette respectée");
-    assert.match(net.formula ?? "", /dette .* − trésorerie/);
+    assert.match(net.formula ?? "", /debt .* − cash/);
   }
-  assert.ok(r.alerts.some(a => /« Machin »/.test(a) && /Identifiants acceptés/.test(a) && /net_debt_ebitda/.test(a)),
+  assert.ok(r.alerts.some(a => /"Machin"/.test(a) && /Accepted identifiers/.test(a) && /net_debt_ebitda/.test(a)),
     "l'inconnu enseigne la liste au lieu de « non calculable »");
 });
 
@@ -317,7 +317,7 @@ test("gen_fc_rules demandé au seed ; fc_rules>0 → note de provenance des règ
   const calls = mockEngine();
   const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
   assert.equal(calls.coaBody?.gen_fc_rules, true, "le seed demande la synthèse des règles");
-  assert.ok(r.notes.some(n => /Règles de flux générées automatiquement/.test(n) && /4 règles/.test(n)),
+  assert.ok(r.notes.some(n => /Flow rules generated automatically/.test(n) && /4 rules/.test(n)),
     "note de provenance présente avec le compte");
 });
 
@@ -337,12 +337,12 @@ test("note de volume : faits mesurés au-delà de 20 000 écritures, jamais une 
     Array.from({ length: 20002 }, (_, i) =>
       `2025-0${(i % 3) + 1}-15,E${(i % 2) + 1},4${1000 + (i % 20)},Compte ${i % 20},${i % 2 ? "100.00,0.00" : "0.00,100.00"}`).join("\n") + "\n";
   const r = await engine().analyze({ content: big, format_hint: "generic", locale: "fr" });
-  const note = r.notes.find(n => /^Volume :/.test(n));
+  const note = r.notes.find(n => /^Volume:/.test(n));
   assert.ok(note, "la note apparaît au-delà du seuil");
-  assert.match(note, /20[\s\u00a0\u202f]?002 écritures/, "le compte réel est cité");
-  assert.match(note, /déterministe et reproductible/, "l'argument est factuel");
+  assert.match(note, /20,002 entries/, "le compte réel est cité");
+  assert.match(note, /deterministically and reproducibly/, "l'argument est factuel");
   for (const banned of [/Excel/i, /tableur.{0,20}(inadapté|limite)/i, /vous devriez/i, /mieux que/i, /recommand/i])
     assert.doesNotMatch(note, banned, "aucune comparaison promotionnelle ni impératif");
   const small = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
-  assert.ok(!small.notes.some(n => /^Volume :/.test(n)), "pas de note sur un petit fichier");
+  assert.ok(!small.notes.some(n => /^Volume:/.test(n)), "pas de note sur un petit fichier");
 });

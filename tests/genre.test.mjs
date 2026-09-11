@@ -58,8 +58,8 @@ test("balance : DSCR retiré + alerte explicite, DSO annoté ordre de grandeur, 
   const r = await e.analyze({ content: TB, format_hint: "generic", locale: "fr" });
   assert.equal(r.detected.genre, "trial_balance");
   assert.ok(!r.kpis.some(k => k.id === "dscr"), "dscr absent des KPI");
-  assert.ok(r.alerts.some(a => /DSCR non calculé/.test(a) && /balance/.test(a)));
-  assert.ok(r.notes.some(n => /ordres de grandeur/.test(n)));
+  assert.ok(r.alerts.some(a => /DSCR not computed/.test(a) && /trial balance/.test(a)));
+  assert.ok(r.notes.some(n => /orders of magnitude/.test(n)));
   assert.ok(!/sous le seuil bancaire/.test(r.summary_markdown), "la vigilance DSCR de la synthèse disparaît mécaniquement");
 });
 
@@ -67,7 +67,7 @@ test("balance + covenant DSCR : « non calculable », pas breach", async () => {
   const e = mockEngine({ dscr: -20.39 });
   const r = await e.analyze({ content: TB, format_hint: "generic", locale: "fr",
     covenants: [{ name: "DSCR", operator: ">=", threshold: 1.2 }] });
-  assert.ok(r.alerts.some(a => /non calculable/.test(a)));
+  assert.ok(r.alerts.some(a => /not computable/.test(a)));
   assert.ok(!r.alerts.some(a => /breach/.test(a)));
 });
 
@@ -76,5 +76,5 @@ test("grand livre : DSCR conservé, aucune annotation de balance", async () => {
   const r = await e.analyze({ content: GL, format_hint: "generic", locale: "fr" });
   assert.equal(r.detected.genre, "ledger");
   assert.ok(r.kpis.some(k => k.id === "dscr"));
-  assert.ok(!r.notes.some(n => /ordres de grandeur/.test(n)));
+  assert.ok(!r.notes.some(n => /orders of magnitude/.test(n)));
 });

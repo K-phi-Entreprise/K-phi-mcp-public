@@ -69,6 +69,16 @@ function trendArrow(id: string, series: NonNullable<AnalysisResult["series"]>): 
   return mb > ma ? `<span style="color:#1baf7a;font-size:13px"> ↗</span>` : `<span style="color:#d03b3b;font-size:13px"> ↘</span>`;
 }
 
+/* Engine labels are English; the fr dashboard maps them back by id. */
+const FR_LABELS: Record<string, string> = {
+  revenue: "Chiffre d'affaires", gross_profit: "Marge brute", ebitda: "EBITDA", ebitda_margin: "Marge d'EBITDA",
+  operating_income: "Résultat d'exploitation", net_income: "Résultat net", net_margin: "Marge nette",
+  cash: "Trésorerie", working_capital: "BFR", dso: "DSO", dpo: "DPO", dio: "DIO", ccc: "Cycle de conversion",
+  total_debt: "Dette financière", net_debt_ebitda: "Dette / EBITDA", net_debt_ebitda_net: "Dette nette / EBITDA",
+  debt_to_equity: "Dette / Fonds propres", dscr: "DSCR", interest_coverage: "Couverture des intérêts",
+  current_ratio: "Ratio de liquidité", quick_ratio: "Liquidité réduite", total_assets: "Total actif",
+  total_equity: "Fonds propres", roe: "ROE",
+};
 const EN_LABELS: Record<string, string> = {
   revenue: "Revenue", gross_profit: "Gross profit", ebitda: "EBITDA", ebitda_margin: "EBITDA margin",
   operating_income: "Operating income", net_income: "Net income", net_margin: "Net margin", roe: "ROE",
@@ -121,7 +131,7 @@ const I18N = {
 export function renderReport(analysisId: string, r: AnalysisResult): string {
   const T = I18N[r.locale === "fr" ? "fr" : "en"];
   const CCY = safeCcy(r.detected.currency);
-  const lbl = (k: Kpi) => (r.locale === "fr" ? k.label : (EN_LABELS[k.id] ?? k.label));
+  const lbl = (k: Kpi) => (r.locale === "fr" ? (FR_LABELS[k.id] ?? k.label) : (EN_LABELS[k.id] ?? k.label));
   const byId = new Map(r.kpis.map(k => [k.id, k]));
   const tiles = ["revenue", "ebitda_margin", "dso", "net_debt_ebitda"]
     .map(id => byId.get(id)).filter((k): k is Kpi => !!k);

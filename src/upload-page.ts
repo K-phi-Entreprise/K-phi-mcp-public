@@ -94,6 +94,13 @@ kbd{background:#2c2b30;border-radius:5px;padding:2px 8px;font-family:ui-monospac
 </aside>
 </div></div>
 <script>
+/* Apostrophes in these strings MUST be typographic (’), never \'.
+   This whole page is a TypeScript template literal, where \' collapses to a
+   bare ' before the browser ever sees it — so an escaped apostrophe inside a
+   single-quoted JS string here ends that string and the entire <script> fails
+   to parse. The page still renders (it is static HTML), but nothing is wired:
+   no drop, no click, no send. That is what the English i18n pass shipped
+   (045431d) and what upload-page-script.test.ts now catches. */
 (function(){
 "use strict";
 var f=document.getElementById('f'),dz=document.getElementById('dz'),go=document.getElementById('go'),
@@ -148,16 +155,16 @@ go.addEventListener('click',function(){
               document.getElementById('wait').innerHTML=
                 '<b>Your dashboard is ready.</b><br><br>'+
                 '<a class="btn" style="display:block;text-align:center;text-decoration:none;padding:15px" href="/a/'+id+'">Open the K-Φ dashboard →</a>'+
-                '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in your assistant\'s chat.</div>';
+                '<div style="margin-top:16px">To bring the figures back into your conversation, reply <kbd>done</kbd> in your assistant’s chat.</div>';
             } else if(j.status==='error'||tries>40){
               clearInterval(poll);clearInterval(phTimer);
               document.getElementById('wait').innerHTML=
-                'Upload complete. Reply <kbd>done</kbd> in your assistant\'s chat to get the analysis.';
+                'Upload complete. Reply <kbd>done</kbd> in your assistant’s chat to get the analysis.';
             }
           }).catch(function(){});
         },3000);
       } else {
-        document.getElementById('wait').innerHTML='Reply <kbd>done</kbd> in your assistant\'s chat to get the analysis.';
+        document.getElementById('wait').innerHTML='Reply <kbd>done</kbd> in your assistant’s chat to get the analysis.';
       }
     }else{
       var e;try{e=JSON.parse(x.responseText).error;}catch(_){e=x.status+' '+x.statusText;}

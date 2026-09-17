@@ -21,6 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import { uploadPageHtml } from "../dist/upload-page.js";
+import { renderReport } from "../dist/report-page.js";
 
 const html = uploadPageHtml();
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -61,4 +62,30 @@ test("the markup carries the elements the script reaches for", () => {
     assert.ok(new RegExp(`id="${id}"`).test(html), `element #${id} missing from the page`);
   }
   assert.match(html, /type="file"/, "no file input on the page");
+});
+
+/* The report page is built the same way — a template literal emitting scripts —
+   and is what every analysis link opens. Same blind spot, same check. It is
+   not broken today; this is here so it cannot become broken silently. */
+const REPORT = {
+  summary_markdown: "**Summary** — stable.",
+  detected: { format: "csv", genre: "ledger", chart_of_accounts: "auto", currency: "USD",
+              period: "2025-01..2025-12", entries: 17769, column_map: { acct: "Account" } },
+  alerts: [], notes: [],
+  kpis: [{ id: "revenue", label: "Revenue", unit: "USD", value: 40844447 },
+         { id: "dscr", label: "DSCR", unit: "x", value: 0.9, status: "breach", threshold: 1.2 }],
+};
+
+test("every script on the report page parses too", () => {
+  const rhtml = renderReport("an_parse_check", REPORT);
+  const blocks = [...rhtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map((m) => m[1]).filter((b) => b.trim().length > 0);
+  assert.ok(blocks.length > 0, "no inline script found on the report page");
+  blocks.forEach((b, i) => {
+    assert.doesNotThrow(
+      () => new vm.Script(b, { filename: `report-page-inline-${i}.js` }),
+      (e) => { throw new Error(`report page script #${i} does not parse: ` + e.message); },
+    );
+    assert.ok(!/\\'/.test(b), `script #${i} contains \\' — collapses to a bare ' in a template literal`);
+  });
 });

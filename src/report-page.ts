@@ -191,7 +191,7 @@ td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
-<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>  /* i18n:fr-ok */
+<span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>${/* i18n:fr-ok */ ""}
 <button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
 ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(esc).join(" ")} ${T.caveatTail}</div>` : ""}
 <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.chart}<span class="mut" id="grpTag" style="font-size:12.5px;font-weight:400;display:none">&nbsp;— ${T.groupLevel}</span>
@@ -229,7 +229,7 @@ ${r.forecast ? `<div id="scopebar" style="display:flex;gap:10px;align-items:cent
 ${r.forecast || series.length > 1 ? `<h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${T.scoped}
 <span><button class="mbtn" id="bW" onclick="cmode('W')">${T.waterfall}</button> <button class="mbtn" id="bS" onclick="cmode('S')">${T.pies}</button></span></h2>
 <div class="chartbox sk" id="box2"><canvas id="c2"></canvas><div id="sk" style="display:none;overflow:auto;height:100%"></div></div>` : ""}
-<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · ${r.locale === "fr" ? "réf." : "ref."} ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>  /* i18n:fr-ok */
+<div class="tiles">${tiles.map(k => `<details class="tile"><summary style="cursor:pointer;list-style:none"><div class="l">${esc(lbl(k))}</div><div class="v" style="color:${color(k)}">${fmtV(k, CCY)}</div></summary><div class="mut" style="font-size:11px;margin-top:6px">${esc(k.formula ?? (r.locale === "fr" ? "Voir le détail dans K-Φ" : "Details in K-Φ"))} · ${r.locale === "fr" ? "réf." : "ref."} ${refCell(k, r.locale).replace(/<[^>]+>/g, "")}</div></details>`).join("")}</div>${/* i18n:fr-ok */ ""}
 <h2>${T.kpi}</h2>
 ${(() => {
   const ids0 = GROUPS[0][1];

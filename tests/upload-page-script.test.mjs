@@ -89,3 +89,20 @@ test("every script on the report page parses too", () => {
     assert.ok(!/\\'/.test(b), `script #${i} contains \\' — collapses to a bare ' in a template literal`);
   });
 });
+
+test("no source marker or comment leaks into the rendered pages", () => {
+  /* `/* i18n:fr-ok *\/` was appended to two lines INSIDE the report page's
+     template literal. There it is not a comment — it is text, and it was
+     printed on the page between the tiles and the KPI section, where the
+     owner spotted it (2026-09-17). The marker now lives in an interpolated
+     comment, ${/* … *\/ ""}, which keeps it on the source line for the
+     english-only scanner and emits nothing. */
+  const pages = { upload: html, report: renderReport("an_marker_check", REPORT) };
+  for (const [name, page] of Object.entries(pages)) {
+    assert.ok(!page.includes("i18n:fr-ok"), `${name} page leaks an i18n marker into its output`);
+    /* the general form: a block comment outside <script> is text, not a comment */
+    const outsideScripts = page.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/g, "");
+    assert.ok(!/\/\*[\s\S]*?\*\//.test(outsideScripts.replace(/<style>[\s\S]*?<\/style>/g, "")),
+      `${name} page prints a /* … */ comment as visible text`);
+  }
+});

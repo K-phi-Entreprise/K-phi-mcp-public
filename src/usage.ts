@@ -11,6 +11,7 @@ export type EventName =
   | "tool_call:kphi_request_upload"
   | "tool_call:kphi_get_analysis"
   | "tool_call:kphi_explain_kpi"
+  | "tool_call:kphi_indicative_valuation"
   | "analysis_ready"
   | "analysis_error"
   | "rate_limited"

@@ -88,10 +88,27 @@ export interface AnalysisResult {
   sandbox?: { tenant_id: string; tenant_name: string; ver: string; open_url?: string };
 }
 
+/** The indicative valuation range (engine: POST /api/valuation/indicative).
+ *  A RANGE only, never a point value: the ledger alone, market defaults for
+ *  the rest. The teaser; the full valuation is measured in the platform. */
+export interface IndicativeValuation {
+  indicative: true;
+  range: { low: number; high: number };
+  currency: string | null;
+  based_on: { ledger_months: number; from: string; to: string; annualised: boolean; revenue: number; ebitda: number; ebitda_margin: number; net_debt: number };
+  methods: string[];
+  assumed: { input: string; value: number; basis: string }[];
+  not_measured: string[];
+  refine: { message: string; url: string };
+  caution: string;
+}
+
 export interface AnalysisEngine {
   analyze(input: AnalyzeInput): Promise<AnalysisResult>;
   /** Pour les gros fichiers déposés via l'upload signé. */
   analyzeFromStorage(storageKey: string, opts: Omit<AnalyzeInput, "content">): Promise<AnalysisResult>;
+  /** Optional: only the real engine can value a sandbox's ledger. */
+  indicativeValuation?(tenantId: string, opts: { country?: string; industry?: string; currency?: string }): Promise<IndicativeValuation>;
 }
 
 /* ------------------------------------------------------------------ */

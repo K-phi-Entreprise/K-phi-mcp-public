@@ -442,6 +442,36 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     return present(deps, rec.id, rec.result);
   });
 
+  server.registerTool("kphi_indicative_valuation", {
+    title: "Indicative valuation range",
+    description:
+      "Gives an INDICATIVE range for what the company behind an analysed ledger might be worth: a range, never a single figure, " +
+      "from the ledger alone with market defaults for everything else (listed in the answer). Use after kphi_analyze_ledger, " +
+      "for questions like \"what is my company worth?\". Always present it as a range, list what was assumed, and pass on the " +
+      "invitation to refine it in K-Φ, where the same valuation is measured from invoices and bank. It is not a valuation.",
+    inputSchema: {
+      analysis_id: z.string(),
+      industry: z.string().optional().describe("The company's industry, e.g. \"Software (System & Application)\", \"Retail (General)\". Improves the beta and multiple used."),
+      country: z.string().optional().describe("Country of operation, ISO code or name, e.g. \"US\", \"FR\", \"UK\". Default US."),
+      currency: z.string().optional().describe("Currency of the ledger, e.g. USD, EUR, for display."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ analysis_id, industry, country, currency }) => {
+    deps.usage.record("tool_call:kphi_indicative_valuation");
+    const rec = await deps.store.get(analysis_id);
+    const sb = rec?.result?.sandbox;
+    if (!rec || !rec.result) return err("Analysis not found. Analyze a ledger first with kphi_analyze_ledger.");
+    if (!sb || !sb.tenant_id) return err("This analysis has no K-Φ workspace behind it, so no valuation range can be computed.");
+    if (typeof deps.engine.indicativeValuation !== "function") return err("Valuation ranges are not available on this server.");
+    try {
+      const v = await deps.engine.indicativeValuation(sb.tenant_id, { industry, country, currency });
+      return { content: [{ type: "text" as const, text: formatIndicative(v, sb.open_url) }], structuredContent: { ...v, open_url: sb.open_url } };
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      return err("No range could be given: " + m);
+    }
+  });
+
   server.registerTool("kphi_explain_kpi", {
     title: "Explain a KPI",
     description:
@@ -462,6 +492,31 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       (k.threshold !== undefined ? `Covenant threshold: ${k.threshold} (${k.status})\n` : "");
     return { content: [{ type: "text" as const, text }], structuredContent: { ...k } };
   });
+}
+
+/** The indicative valuation range, as text for the assistant. Exported for
+ *  tests. The range only, then what it rests on, then the invitation to
+ *  refine it in the platform. */
+export function formatIndicative(v: import("./engine.js").IndicativeValuation, openUrl?: string): string {
+  const n = (x: number) => Math.round(x).toLocaleString("en-US");
+  const pct = (x: number) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + "%";
+  const ccy = v.currency ? " " + v.currency : "";
+  const b = v.based_on;
+  const lines = [
+    `Indicative equity value: between ${n(v.range.low)} and ${n(v.range.high)}${ccy}.`,
+    ``,
+    `Based on ${b.ledger_months} month${b.ledger_months === 1 ? "" : "s"} of your ledger (${b.from} to ${b.to}${b.annualised ? ", annualised" : ""}): revenue ${n(b.revenue)}, EBITDA ${n(b.ebitda)} (${pct(b.ebitda_margin)} margin), net debt ${n(b.net_debt)}. Methods: ${v.methods.join(" and ")}.`,
+    ``,
+    `Assumed, not measured:`,
+    ...v.assumed.map(a => `- ${a.input}: ${a.value < 1 && a.value > -1 && a.input !== "Unlevered beta" ? pct(a.value) : a.value} (${a.basis})`),
+    ``,
+    `A full valuation would measure instead: ${v.not_measured.join("; ")}.`,
+    ``,
+    v.refine.message + (openUrl ? ` Open this analysis in K-Φ to refine it: ${openUrl}` : ` ${v.refine.url}`),
+    ``,
+    v.caution,
+  ];
+  return lines.join("\n");
 }
 
 function err(message: string) {

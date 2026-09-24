@@ -99,7 +99,8 @@ const SMALL_CSV =
 test("tools/list — names, titles, descriptions and input schemas are English", async () => {
   const c = await boot();
   const { tools } = await c.listTools();
-  assert.equal(tools.length, 4);
+  /* 5 since kphi_indicative_valuation (2026-09-24) */
+  assert.equal(tools.length, 5);
   assertEnglish("tools/list", tools);
 });
 

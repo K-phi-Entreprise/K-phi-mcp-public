@@ -216,6 +216,21 @@ export class KphiHttpEngine implements AnalysisEngine {
   }
 
   /** Jeton pour relire un tenant sandbox existant (ex. après upload asynchrone). */
+  /** The indicative valuation range for the sandbox that holds an analysis.
+   *  A range only; the engine refuses (422) a ledger without positive revenue
+   *  and EBITDA, and rate-limits per sandbox. */
+  async indicativeValuation(tenantId: string, opts: { country?: string; industry?: string; currency?: string }): Promise<import("./engine.js").IndicativeValuation> {
+    const token = await this.tokenFor(tenantId);
+    const r = await this.fetch("/api/valuation/indicative", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(opts || {}),
+    });
+    const j = await r.json().catch(() => ({})) as any;
+    if (!r.ok) throw new EngineError(j && j.error ? String(j.error) : `indicative valuation: ${r.status}`, r.status);
+    return j;
+  }
+
   async tokenFor(tenantId: string): Promise<string> {
     const r = await this.fetch("/api/internal/sandbox/token", {
       method: "POST",

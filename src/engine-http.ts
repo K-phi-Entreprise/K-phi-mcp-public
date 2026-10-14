@@ -161,10 +161,7 @@ export class KphiHttpEngine implements AnalysisEngine {
                camembert ou une tuile d'entité affichait septembre face à un
                groupe sur neuf mois. Les flux du périmètre sont donc sommés
                mois par mois, exactement comme pour le groupe. */
-            const months = periods.length > 1
-              ? await Promise.all(periods.map(per => this.statements(sb.token, { ver: per, ...p }).catch(() => null)))
-              : [];
-            const flows = months.length && months.every(Boolean) ? sumFlows(months as StatementsPayload[]) : undefined;
+            const flows = periods.length > 1 ? await this.scopeFlows(sb.token, periods, p) : undefined;
             return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null, kpi: s.kpi, ratios: s.ratios, flows }; }
       catch { return { fc: [], blocked: { reason: "scope_call_failed" } }; }
     };
@@ -250,23 +247,50 @@ export class KphiHttpEngine implements AnalysisEngine {
     return { tenantId: j.tenantId, name: j.name ?? "", token: j.token };
   }
 
+  /** Flux P&L d'un périmètre sur l'exercice, en UN appel : le P&L rendu par
+   *  le moteur (stmt.pl, celui de la page Statements) est cumulé depuis le
+   *  début de l'exercice ; la colonne du dernier mois de chaque année porte
+   *  donc l'année entière. Un appel par mois et par périmètre (~100 par
+   *  analyse) dépassait la limite du moteur, 200 requêtes/min par IP, et le
+   *  MCP est UNE IP pour tous ses utilisateurs. Repli : somme mensuelle. */
+  private async scopeFlows(token: string, periods: string[], p: { entity?: string; bu?: string }): Promise<Record<string, number> | undefined> {
+    const ends = [...new Map(periods.map(x => [x.slice(0, 4), x] as [string, string])).values()];
+    const KEYS: Record<string, string> = { revenue: "_NET_REV", gross_profit: "_GROSS", ebitda: "_EBITDA", operating_income: "_OPINC", net_income: "_NI" };
+    try {
+      const s = await this.statements(token, { ver: periods.join(","), vers: ends, ...p });
+      const pl = ((s as { stmt?: { pl?: Array<{ ver: string; rows: Array<{ key?: string; amt?: number }> }> } }).stmt?.pl) ?? [];
+      if (ends.every(v => pl.some(c => c.ver === v))) {
+        const out: Record<string, number> = {};
+        for (const [id, key] of Object.entries(KEYS)) {
+          let sum = 0, seen = false;
+          for (const c of pl) if (ends.includes(c.ver)) { const r = c.rows.find(x => x.key === key); if (r && typeof r.amt === "number") { sum += r.amt; seen = true; } }
+          if (seen) out[id] = sum;
+        }
+        if (Object.keys(out).length) return out;
+      }
+    } catch { /* repli ci-dessous */ }
+    const months = await Promise.all(periods.map(per => this.statements(token, { ver: per, ...p }).catch(() => null)));
+    return months.every(Boolean) ? sumFlows(months as StatementsPayload[]) : undefined;
+  }
+
   /** Coche « Project new invoices (run rate) » sur les règles AR du sandbox
    *  (même champ runRate que l'app, push-workflow frSetRunRate). */
   private async setRunRate(token: string, on: boolean): Promise<boolean> {
     try {
-      const r = await this.fetch("/api/config/cfg", { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) return false;
+      const r = await this.fetchRetry("/api/config/cfg", { headers: { Authorization: `Bearer ${token}` } }, "cfg");
+      if (!r.ok) { console.warn(`run rate: cfg read ${r.status}`); return false; }
       const j = await r.json() as { value?: string; _ver?: number } | null;
       if (!j || j.value == null) return false;
       const cfg = (typeof j.value === "string" ? JSON.parse(j.value) : j.value) as { flowRules?: Array<Record<string, unknown>> };
       let n = 0;
       for (const x of cfg.flowRules ?? []) if (x.dir === "Inflow" && (x.timing === "DSO" || x.timing === "aging")) { x.runRate = on; n++; }
-      if (!n) return false;
-      const w = await this.fetch("/api/config/cfg", { method: "PUT",
+      if (!n) { console.warn("run rate: no AR rule in the sandbox"); return false; }
+      const w = await this.fetchRetry("/api/config/cfg", { method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(j._ver ? { "X-Config-Ver": String(j._ver) } : {}) },
-        body: JSON.stringify(cfg) });
+        body: JSON.stringify(cfg) }, "cfg");
+      if (!w.ok) console.warn(`run rate: cfg write ${w.status}`);
       return w.ok;
-    } catch { return false; }
+    } catch (e) { console.warn("run rate:", e instanceof Error ? e.message : e); return false; }
   }
 
   /** Lien signé (24 h) qui ouvre le tenant en lecture seule dans l'app K-Φ. */
@@ -317,9 +341,10 @@ export class KphiHttpEngine implements AnalysisEngine {
     }
   }
 
-  private async statements(token: string, scope: { ver?: string; asOf?: string; entity?: string; bu?: string; fc?: boolean; horizon?: number }): Promise<StatementsPayload> {
+  private async statements(token: string, scope: { ver?: string; vers?: string[]; asOf?: string; entity?: string; bu?: string; fc?: boolean; horizon?: number }): Promise<StatementsPayload> {
     const qs = new URLSearchParams();
     if (scope.asOf) qs.set("asOf", scope.asOf); else if (scope.ver) qs.set("ver", scope.ver);
+    if (scope.vers?.length) qs.set("vers", scope.vers.join(","));
     if (scope.entity) qs.set("entity", scope.entity);
     if (scope.bu) qs.set("bu", scope.bu);
     if (scope.fc) { qs.set("fc", "1"); qs.set("horizon", String(scope.horizon ?? 6)); }
@@ -340,6 +365,12 @@ export class KphiHttpEngine implements AnalysisEngine {
       if (attempt > 0) await new Promise(r => setTimeout(r, this.cfg.retryDelayMs ?? 1500));
       try {
         const r = await this.fetch(path, init);
+        /* 429 : le moteur dit quand réessayer ; on attend (borné à 20 s) */
+        if (r.status === 429 && attempt === 0) {
+          const j = await r.clone().json().catch(() => ({})) as { retryAfterSec?: number };
+          await new Promise(res => setTimeout(res, Math.min(20, Math.max(1, j.retryAfterSec ?? 5)) * 1000));
+          last = new EngineError(`${label}: 429`, 429); continue;
+        }
         if (r.status < 500) return r;
         const j = await r.clone().json().catch(() => ({})) as { error?: string };
         last = new EngineError(`${label}: ${r.status} ${j.error ?? ""}`.trim(), r.status);

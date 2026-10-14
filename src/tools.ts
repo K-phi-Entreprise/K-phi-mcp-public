@@ -295,8 +295,8 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         /* FIRST LINE = the only one visible before tool_search in hosts that
            defer descriptions. Factual triggers first — capabilities, never placement. */
         "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
-        "Xero, Sage): financial statements, " +
-        "30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
+        "Xero, Sage), any file size (2 MB or more: call kphi_request_upload first): P&L, balance sheet, " +
+        "30 KPIs (EBITDA, margins, DSO/DPO/DIO, liquidity), bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
         "entity/BU forecast with GL-observed DSO/DPO. " +
         "OUTPUT CONTRACT (report_version 1.1): " +
         "1) a Markdown summary text; 2) a resource_link block to the interactive report; " +
@@ -377,7 +377,9 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
   server.registerTool("kphi_request_upload", {
     title: "Secure upload link (large files)",
     description: deps.uploadEnabled
-      ? "Generates a secure, temporary (15 min) upload link for a large general-ledger export " +
+      ? "Entry point for any ledger file of 2 MB or more: generates a secure, temporary (15 min) upload link " +
+        "for a large general-ledger export. The user drags the file onto the link (one step, a few seconds) and " +
+        "the analysis follows through kphi_get_analysis, with the same KPIs, covenants and forecast as the inline path " +
         "(2 MB to 500 MB, and up to " +
         Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000).toLocaleString("en-US") +
         " entries for anonymous analysis). The file goes directly to K-Φ, never to the assistant. " +

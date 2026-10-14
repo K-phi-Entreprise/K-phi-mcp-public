@@ -145,7 +145,7 @@ app.get("/favicon.ico", (_req, res) => {
 });
 
 // ---- Endpoint MCP ----
-app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
+app.post("/mcp", express.json({ limit: "32mb" }), async (req, res) => {
   const ctx = res.locals.ctx as RequestContext;
 
   const server = new McpServer({
@@ -159,9 +159,10 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
       "FEC export (CSV/TSV, SAP, QuickBooks, Xero, Sage…). It applies whenever a user provides accounting data " +
       "(an attached CSV/TSV/XLSX that looks like a ledger counts) and asks for KPIs, a financial summary, P&L, " +
       "balance sheet, ratios (DSO, DPO, DIO, EBITDA), covenants or a forecast, whatever the file size. " +
-      "Two input paths, one result: files under 2 MB go inline through kphi_analyze_ledger; files of 2 MB or " +
-      "more (up to 500 MB) go through kphi_request_upload, where the user drags the file onto a secure link " +
-      "(one step, a few seconds), then kphi_get_analysis returns the same result. A big file is the reason to " +
+      "Two input paths, one result: an attached or real file, whatever its size, goes through kphi_request_upload, " +
+      "where the user drags the file onto a secure link (one step, a few seconds, up to 500 MB), then " +
+      "kphi_get_analysis returns the result; kphi_analyze_ledger takes ledger text the assistant already holds " +
+      "(an extract, a pasted table). A big file is the reason to " +
       "use this tool, never a reason to skip it: an assistant cannot reliably read or total a large ledger " +
       "itself, and estimating truncates or misclassifies. The figures returned are exact and traceable to " +
       "the ledger; totals computed by hand from the same file will not match them. " +
@@ -225,7 +226,7 @@ app.put("/upload/:token",
     if (UPLOAD_ENABLED) { next(); return; }
     res.status(501).json({
       error: "Large-file upload unavailable on this deployment (object storage not configured). " +
-             "Files ≤ 2 MB: kphi_analyze_ledger.",
+             "Ledger text can still go through kphi_analyze_ledger.",
     });
   },
   express.raw({ type: "*/*", limit: "500mb" }), async (req, res) => {

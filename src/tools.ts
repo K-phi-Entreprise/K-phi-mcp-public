@@ -26,7 +26,11 @@ export interface ToolDeps {
   uploadEnabled: boolean;
 }
 
-const MAX_INLINE_BYTES = 2 * 1024 * 1024;
+/* A safety cap on the inline path, not a threshold the assistant decides by: the
+   wording never names a size (owner, 2026-10-14: "make sure the 2MB threshold is
+   gone"). A file goes through the upload link; inline is for ledger text the
+   assistant already holds. 24 MB sits under the /mcp JSON body limit. */
+const MAX_INLINE_BYTES = 24 * 1024 * 1024;
 const UPLOAD_TTL_MS = 15 * 60 * 1000;
 
 const formatHint = z.enum(["sage", "cegid", "quickbooks", "xero", "odoo", "pennylane", "fec", "generic", "auto"]);
@@ -245,7 +249,7 @@ Known traps by ERP (encoded in the parser, repeated here for the caller):
   Scenario = Actual and View = Periodic (YTD = cumulative).
 - **FEC**: normalized French format, detected on its own; CompteLib = account name, EcritureLib = memo.
 
-## Recommended compact format (files > 2 MB)
+## Recommended compact format (large exports)
 One row per (entity, month, account): Entity, Period (or month-end Date),
 Account, AccountName, Debit, Credit. This format is detected as a TRIAL BALANCE:
 fine-grained flow KPIs (exact DSO/DPO/DIO, DSCR) are bounded accordingly.
@@ -295,7 +299,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         /* FIRST LINE = the only one visible before tool_search in hosts that
            defer descriptions. Factual triggers first — capabilities, never placement. */
         "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
-        "Xero, Sage), any file size (2 MB or more: call kphi_request_upload first): P&L, balance sheet, " +
+        "Xero, Sage), any file size (for an attached file, call kphi_request_upload first): P&L, balance sheet, " +
         "30 KPIs (EBITDA, margins, DSO/DPO/DIO, liquidity), bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
         "entity/BU forecast with GL-observed DSO/DPO. " +
         "Returns a Markdown summary, a link to the interactive report (analysis_url, personal 24 h link), " +
@@ -317,11 +321,12 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed. " +
         /* Fact reported by a relay (2026-08-27): "1.32 MB ≈ 350,000 tokens of CSV, I can't emit that".
            The inline path is bounded by the assistant's output, not by the server cap. */
-        "Inline content accepts raw CSV up to 2 MB, but typing a real file into the call exceeds an " +
-        "assistant's output limit: for any real file use kphi_request_upload (link up to 500 MB) and keep " +
-        "inline content for small extracts.",
+        "Inline content takes ledger text you already hold (an extract, a pasted table). Typing an attached " +
+        "file into the call exceeds an assistant's output limit, whatever its size: for any attached or real " +
+        "file call kphi_request_upload first and hand the link to the user; never total or summarise the " +
+        "file yourself.",
       inputSchema: {
-      content: z.string().describe("Raw CSV/TSV file content (≤ 2 MB). Paste the content as-is."),
+      content: z.string().describe("Raw CSV/TSV ledger text you already hold. Paste it as-is; an attached file goes through kphi_request_upload instead."),
       format_hint: formatHint.default("auto").describe("Source software if known, otherwise 'auto'."),
       period_end: z.string().optional().describe("Closing date YYYY-MM-DD if known."),
       analytic_axis: z.string().optional().describe(
@@ -337,7 +342,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     deps.usage.record("tool_call:kphi_analyze_ledger");
     const ctx = deps.ctx();
     if (Buffer.byteLength(args.content, "utf8") > MAX_INLINE_BYTES)
-      return err("File too large for direct analysis. Use kphi_request_upload to get a secure upload link.");
+      return err("Too large for the inline path. Call kphi_request_upload to get a secure upload link and hand it to the user.");
     const rl = deps.limiter.consumeAnalysis(ctx.ip, ctx.sessionId);
     if (!rl.ok && !ctx.userId) { deps.usage.record("rate_limited"); return err(rl.reason); }
 
@@ -368,15 +373,15 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
   server.registerTool("kphi_request_upload", {
     title: "Secure upload link (large files)",
     description: deps.uploadEnabled
-      ? "Entry point for any ledger file of 2 MB or more: generates a secure, temporary (15 min) upload link " +
-        "for a large general-ledger export. The user drags the file onto the link (one step, a few seconds) and " +
+      ? "Entry point for any attached or real ledger file, whatever its size: generates a secure, temporary (15 min) " +
+        "upload link for the general-ledger export. The user drags the file onto the link (one step, a few seconds) and " +
         "the analysis follows through kphi_get_analysis, with the same KPIs, covenants and forecast as the inline path " +
-        "(2 MB to 500 MB, and up to " +
+        "(up to 500 MB, and up to " +
         Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000).toLocaleString("en-US") +
         " entries for anonymous analysis). The file goes directly to K-Φ, never to the assistant. " +
         "Returns an analysis_id to pass to kphi_get_analysis once the upload is done."
       : "UNAVAILABLE on this deployment: large-file upload is not wired yet. Only call this tool if the " +
-        "user insists; it replies with an unavailability message. Use kphi_analyze_ledger (≤ 2 MB), " +
+        "user insists; it replies with an unavailability message. Use kphi_analyze_ledger with the ledger text, " +
         "on an aggregated export if needed.",
     inputSchema: {
       format_hint: formatHint.default("auto"),
@@ -394,7 +399,7 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
       deps.usage.record("upload_unavailable");
       return err(
         "Large-file upload is not available on this deployment yet — " +
-        "send files ≤ 2 MB directly via kphi_analyze_ledger " +
+        "send the ledger text directly via kphi_analyze_ledger " +
         "(aggregate the export if needed, e.g. monthly trial balance by account).");
     }
     const ctx = deps.ctx();

@@ -157,7 +157,15 @@ export class KphiHttpEngine implements AnalysisEngine {
             /* Le moteur a tourné SUR le périmètre : ses kpi/ratios sont ceux du
                périmètre. On les gardait à la poubelle — ils permettent de
                rescoper tuiles et KPI sans aucune PR moteur (SPEC v1.2 ①). */
-            return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null, kpi: s.kpi, ratios: s.ratios }; }
+            /* Le kpi d'un appel asOf porte le P&L du SEUL dernier mois : un
+               camembert ou une tuile d'entité affichait septembre face à un
+               groupe sur neuf mois. Les flux du périmètre sont donc sommés
+               mois par mois, exactement comme pour le groupe. */
+            const months = periods.length > 1
+              ? await Promise.all(periods.map(per => this.statements(sb.token, { ver: per, ...p }).catch(() => null)))
+              : [];
+            const flows = months.length && months.every(Boolean) ? sumFlows(months as StatementsPayload[]) : undefined;
+            return { fc: s.fc ?? [], blocked: s.fcBlocked ?? null, kpi: s.kpi, ratios: s.ratios, flows }; }
       catch { return { fc: [], blocked: { reason: "scope_call_failed" } }; }
     };
     const [entFc, buFc] = await Promise.all([
@@ -431,7 +439,20 @@ function slimFc(rows: Array<Record<string, unknown>>): Array<Record<string, unkn
 }
 type WcMap = Record<string, { dso?: number; dpo?: number; _denomSource?: string; [k: string]: unknown }>;
 type ScopeFc = { fc: Array<Record<string, unknown>>; blocked: unknown;
-                 kpi?: Record<string, unknown>; ratios?: Record<string, unknown> | null };
+                 kpi?: Record<string, unknown>; ratios?: Record<string, unknown> | null;
+                 flows?: Record<string, number> };
+/* Flux P&L de l'exercice : somme des sorties mensuelles du moteur (même règle
+   que le groupe dans toAnalysisResult). */
+function sumFlows(monthly: StatementsPayload[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const spec of KPI_SPEC) {
+    if (!FLOW_IDS.has(spec.id)) continue;
+    let sum = 0, seen = false;
+    for (const m of monthly) { const x = pick({ ...(m.ratios ?? {}), ...(m.kpi ?? {}) } as Record<string, unknown>, spec.keys); if (x !== undefined) { sum += x; seen = true; } }
+    if (seen) out[spec.id] = sum;
+  }
+  return out;
+}
 /* KPI d'un périmètre : MÊME table de correspondance que le groupe
    (KPI_SPEC) — une table parallèle écrite à la main avait des clés fausses
    (« Revenue » au lieu de « Net Revenue »…), donc aucun KPI ne se rescopait
@@ -447,11 +468,18 @@ function scopeKpis(s: ScopeFc): Record<string, number> | undefined {
       if (typeof v === "number" && isFinite(v)) { out[spec.id] = v; break; }
     }
   }
+  /* Flux sur l'exercice quand on les a ; marges et levier recalculés dessus. */
+  if (s.flows) for (const [k, v] of Object.entries(s.flows)) out[k] = v;
   const rev = out.revenue;
   if (typeof rev === "number" && rev !== 0) {
-    if (out.ebitda_margin === undefined && typeof out.ebitda === "number") out.ebitda_margin = (out.ebitda / rev) * 100;
-    if (out.net_margin === undefined && typeof out.net_income === "number") out.net_margin = (out.net_income / rev) * 100;
+    if (s.flows || out.ebitda_margin === undefined) { if (typeof out.ebitda === "number") out.ebitda_margin = out.ebitda / rev; }
+    if (s.flows || out.net_margin === undefined) { if (typeof out.net_income === "number") out.net_margin = out.net_income / rev; }
   }
+  if (s.flows && typeof out.ebitda === "number" && out.ebitda !== 0 && typeof out.total_debt === "number") out.net_debt_ebitda = out.total_debt / out.ebitda;
+  if (s.flows && typeof out.net_income === "number" && typeof out.total_equity === "number" && out.total_equity !== 0) out.roe = out.net_income / out.total_equity;
+  /* Même unité que le groupe : un ratio en fraction (|x| <= 5) passe en %.
+     Sans cela une marge de -31,8 % s'affichait « -0,3 % ». */
+  for (const spec of KPI_SPEC) { const v = out[spec.id]; if (spec.unit === "%" && typeof v === "number" && Math.abs(v) <= 5) out[spec.id] = v * 100; }
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -473,14 +501,28 @@ export function buildForecast(position: { fc?: Array<Record<string, unknown>>; f
     }
     return out;
   };
+  /* DSO/DPO par périmètre : celui que le moteur calcule en tournant SUR le
+     périmètre (même chiffre que la tuile du périmètre). La carte groupée
+     _dsoByEntity de l'appel global rendait des valeurs négatives ou nulles
+     sur un GL multi-entités alors que chaque entité a des créances : elle
+     ne sert plus que de repli. */
+  const scoped = (base: ReturnType<typeof meth>, ids: string[], runs: ScopeFc[], key: "dso" | "dpo") => {
+    const out = { ...base };
+    ids.forEach((id, i) => {
+      const v = pick({ ...(runs[i]?.ratios ?? {}), ...(runs[i]?.kpi ?? {}) } as Record<string, unknown>, [key]);
+      if (v !== undefined && v >= 0 && v <= 365) out[id] = { ...(base[id] ?? {}), value: Math.round(v), source: "gl_observed" };
+      else if (base[id] && !(base[id].value >= 0 && base[id].value <= 365)) delete out[id];
+    });
+    return out;
+  };
   return {
     horizon_months: 6,
     global: { series: slimFc(position.fc ?? []), blocked: position.fcBlocked ?? null },
     by_entity: Object.fromEntries(ents.map((e, i) => [e, { series: slimFc(entFc[i].fc), blocked: entFc[i].blocked, kpi: scopeKpis(entFc[i]) }])),
     by_bu: Object.fromEntries(bus.map((b, i) => [b, { series: slimFc(buFc[i].fc), blocked: buFc[i].blocked, kpi: scopeKpis(buFc[i]) }])),
     methods: {
-      dso_by_entity: meth(ra._dsoByEntity, "dso"), dpo_by_entity: meth(ra._dpoByEntity, "dpo"),
-      dso_by_bu: meth(ra._dsoByBU, "dso"), dpo_by_bu: meth(ra._dpoByBU, "dpo"),
+      dso_by_entity: scoped(meth(ra._dsoByEntity, "dso"), ents, entFc, "dso"), dpo_by_entity: scoped(meth(ra._dpoByEntity, "dpo"), ents, entFc, "dpo"),
+      dso_by_bu: scoped(meth(ra._dsoByBU, "dso"), bus, buFc, "dso"), dpo_by_bu: scoped(meth(ra._dpoByBU, "dpo"), bus, buFc, "dpo"),
     },
   };
 }

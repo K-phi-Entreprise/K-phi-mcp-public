@@ -167,37 +167,46 @@ table{font-size:16.5px;width:100%;border-collapse:collapse;font-size:13px;margin
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
-/* PDF (fondateur 2026-10-14) : sombre, aux couleurs K-Φ — fond #07070f,
-   cartes #13131f, bandeau aurora (#C5B358 · #36D6A0 · #534AB7 · #E6007E),
-   même palette que l'app. Les fonds s'impriment (print-color-adjust), les
-   graphiques sont redimensionnés à la largeur A4 avant l'impression. */
+/* PDF (fondateur 2026-10-14, 13:29) : CLAIR, pas sombre (« reverse ... work
+   instead in light mode ») — fond blanc, cartes gris très clair, bandeau
+   aurora fin et marque K-Φ en tête, pied de provenance. Les graphiques sont
+   figés en images à la largeur A4 avant l'impression (voir le script plus
+   bas) : un canvas redimensionné pendant l'impression sortait vide. */
 .pcover,.pfoot{display:none}
-@page{size:A4;margin:0}
+@page{size:A4;margin:12mm 13mm}
 @media print{
-  html,body{background:#07070f !important;color:#e8ecf5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .wrap{max-width:none;width:auto;padding:12mm 13mm;-webkit-box-decoration-break:clone;box-decoration-break:clone}
-  .pcover{display:block;margin:-12mm -13mm 10mm;padding:12mm 13mm 8mm;background:#0b0b16;border-bottom:1px solid #23233a;position:relative}
-  .pcover:before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,#C5B358,#36D6A0 35%,#534AB7 65%,#E6007E)}
-  .pcover .brand{display:inline-block;font-size:30px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#C5B358,#36D6A0 40%,#534AB7 70%,#E6007E);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .pcover .t{font-size:20px;font-weight:600;color:#e8ecf5;margin-top:4px}
-  .pcover .m{font-size:11.5px;color:#9a9ab8;margin-top:6px}
+  html,body{background:#fff !important;color:#16161d;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;width:auto;padding:0}
+  .pcover{display:block;margin:0 0 8mm;padding:6mm 0 5mm;border-bottom:1px solid #e3e3ea;position:relative}
+  .pcover:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#C5B358,#36D6A0 35%,#534AB7 65%,#E6007E)}
+  .pcover .brand{display:inline-block;font-size:28px;font-weight:800;letter-spacing:-.5px;color:#534AB7}
+  .pcover .t{font-size:19px;font-weight:600;color:#16161d;margin-top:2px}
+  .pcover .m{font-size:11px;color:#6b6b7b;margin-top:4px}
   .hd{display:none !important}
-  .tile,.panel,.cov{background:#13131f !important;border:1px solid #23233a !important;color:#e8ecf5 !important}
-  table{background:transparent !important;color:#e8ecf5 !important}
-  td{border-top:1px solid #23233a !important}
-  .cav{background:#2a210c !important;color:#f5c04a !important}
-  .mut,.l,th{color:#9a9ab8 !important}
-  h2{color:#c8c8e0 !important;font-size:13px;letter-spacing:.06em;text-transform:uppercase;border-left:3px solid #36D6A0;padding-left:8px;break-after:avoid}
+  .tile,.panel,.cov{background:#f6f6f9 !important;border:1px solid #e3e3ea !important;color:#16161d !important}
+  table{background:transparent !important;color:#16161d !important}
+  td{border-top:1px solid #e3e3ea !important}
+  .cav{background:#fff6e0 !important;color:#7a5200 !important;border:1px solid #f1d58a}
+  .mut,.l,th{color:#6b6b7b !important}
+  h1,h2{color:#16161d !important}
+  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;border-left:3px solid #36D6A0;padding-left:8px;break-after:avoid}
   .mbtn,.ctah,.cta,#bF,select,#axlbl,label[for],#rrbox{display:none !important}
-  #scopebar{background:#13131f !important;border-color:#23233a !important}
+  #scopebar{background:#f6f6f9 !important;border-color:#e3e3ea !important}
   .pscope{display:inline !important;font-weight:600}
   details{display:block}details>summary{list-style:none}
   #fcp{display:block !important}
-  h1{color:#e8ecf5}
   tr,.tile,.chartbox,.cav{break-inside:avoid}
+  #fcdoc{background:#f6f6f9 !important;border-color:#e3e3ea !important;color:#3a3a48 !important}
+  [style*="color:#e8e6e1"]{color:#16161d !important}
+  [style*="color:#b7b5af"]{color:#3a3a48 !important}
+  [style*="background:#2c2b30"]{background:#e3e3ea !important}
+  .chartbox{overflow:visible}
+  .chartbox canvas{display:none !important}
+  .chartbox img.pimg{display:block !important;width:100%;height:auto}
   a[href]:after{content:""}
-  .pfoot{display:block;margin-top:14mm;padding-top:4mm;border-top:1px solid #23233a;font-size:10.5px;color:#6a6a8e}
+  .pfoot{display:block;margin-top:10mm;padding-top:4mm;border-top:1px solid #e3e3ea;font-size:10px;color:#6b6b7b}
 }
+img.pimg{display:none}
 .pscope{display:none}
 .mbtn{background:#1b1a1e;color:#b7b5af;border:1px solid #2c2b30;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
 .ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
@@ -362,7 +371,7 @@ function draw2(){
  if(CM==='S'){drawPies();return;}
  /* Waterfall du périmètre : CA → charges → EBITDA, depuis les KPI scopés. */
  var rev=kpiOf('revenue'),eb=kpiOf('ebitda');
- if(rev===null||eb===null){_cv.parentNode.innerHTML='<div class="mut" style="padding:24px">'+FT.sankeyNA+'</div>';return;}
+ if(rev===null||eb===null){if(_bx){_bx.style.height='auto';}_cv.parentNode.innerHTML='<div class="mut" style="padding:24px">'+FT.sankeyNA+'</div>';return;}
  CH2=new Chart(_cv,{type:'bar',data:{labels:[FT.skRev,FT.skOpex,FT.skEbitda],datasets:[{
    data:[[0,rev],[rev,eb],[0,eb]],
    backgroundColor:['#2a78d6','#eb6834',eb<0?'#d03b3b':'#1baf7a'],borderRadius:4,maxBarThickness:64}]},
@@ -656,20 +665,63 @@ try{if(window.__FC){
   }
 }}catch(e){}
 /* Impression : panneau de projection ouvert, périmètre écrit en clair (les
-   listes déroulantes ne s'impriment pas), graphiques redimensionnés à la
-   largeur de la page A4 puis rendus à l'écran après. */
+   listes déroulantes ne s'impriment pas), et chaque graphique FIGÉ EN IMAGE
+   à la largeur de la page, aux couleurs claires, avant que le navigateur ne
+   mette en page : un canvas redimensionné pendant l'impression (animation en
+   cours) sortait vide (fondateur 2026-10-14, « make sure the charts appear »).
+   Après l'impression, les canvas reviennent tels quels. */
 (function(){
+  var SAVED=[];
   function charts(){try{return Object.values(Chart.instances||{});}catch(e){return [];}}
+  /* colours only: the previous values are kept to put back after printing */
+  /* recolouring goes through the chart's raw config (c.config.options), never
+     through c.options: that one is Chart.js's resolver proxy and throws on write. */
+  function raw(c){return (c.config&&c.config.options)||null;}
+  function paint(c){
+    var o=raw(c);if(!o)return null;
+    var prev={s:{},l:null,hadScales:!!o.scales,hadPlugins:!!o.plugins};
+    o.scales=o.scales||{};
+    Object.keys(c.scales||{}).forEach(function(k){
+      var a=o.scales[k]=o.scales[k]||{};var t=a.ticks=a.ticks||{};var g=a.grid=a.grid||{};
+      prev.s[k]={t:t.color,g:g.color};t.color='#4a4a58';g.color='#e6e6ee';
+    });
+    var pl=o.plugins=o.plugins||{};var lg=pl.legend=pl.legend||{};var lb=lg.labels=lg.labels||{};
+    prev.l=lb.color;lb.color='#2a2a35';
+    return prev;
+  }
+  function unpaint(c,prev){
+    var o=raw(c);if(!o)return;
+    for(var k in prev.s){var a=o.scales&&o.scales[k];if(!a)continue;a.ticks.color=prev.s[k].t;a.grid.color=prev.s[k].g;}
+    try{o.plugins.legend.labels.color=prev.l;}catch(e){}
+  }
   function before(){
     try{if(window.__FC&&!FCON&&typeof fcpanel==='function')fcpanel();}catch(e){}
     for(const id of ['fcs','fcax']){const el=document.getElementById(id);if(!el||!el.options.length)continue;
       let sp=document.getElementById('p_'+id);if(!sp){sp=document.createElement('span');sp.id='p_'+id;sp.className='pscope';el.after(sp);}
       sp.textContent=el.options[el.selectedIndex]?el.options[el.selectedIndex].text:'';}
     document.body.style.width='184mm';
-    for(const c of charts()){try{c.resize();}catch(e){}}
+    SAVED=[];
+    var list=charts();
+    for(var i=0;i<list.length;i++){
+      var c=list[i],box=c.canvas&&c.canvas.parentNode;if(!box)continue;
+      var sv={c:c,a:c.options.animation,p:null};SAVED.push(sv);
+      try{c.options.animation=false;}catch(e){}
+      try{sv.p=paint(c);}catch(e){console.warn('kphi print paint',e);}
+      try{c.resize();c.update('none');}catch(e){console.warn('kphi print redraw',e);}
+      try{
+        var img=document.createElement('img');img.className='pimg';img.alt='';
+        img.src=c.canvas.toDataURL('image/png');box.appendChild(img);
+      }catch(e){console.warn('kphi print image',e);}
+    }
   }
-  function after(){document.body.style.width='';for(const c of charts()){try{c.resize();}catch(e){}}}
+  function after(){
+    document.body.style.width='';
+    document.querySelectorAll('img.pimg').forEach(function(i){i.remove();});
+    for(const sv of SAVED){try{if(sv.p)unpaint(sv.c,sv.p);sv.c.options.animation=sv.a;sv.c.resize();sv.c.update('none');}catch(e){}}
+    SAVED=[];
+  }
   window.addEventListener('beforeprint',before);window.addEventListener('afterprint',after);
+  window.__kphiPrint={before:before,after:after};
 })();
 </script>
 <div class="pfoot">${r.locale === "fr" ? "Analyse produite par le moteur K-Φ à partir du grand livre fourni. Chiffres traçables jusqu'à l'écriture." : "Analysis produced by the K-Φ engine from the ledger provided. Every figure is traceable to the entry."} · k-phi.com · ${esc(analysisId)}</div>${/* i18n:fr-ok */ ""}

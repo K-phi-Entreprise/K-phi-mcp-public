@@ -156,13 +156,13 @@ app.post("/mcp", express.json({ limit: "3mb" }), async (req, res) => {
     instructions:
       "K-Φ is a deterministic accounting engine: exact, traceable financial statements, 30 KPIs, bank covenants " +
       "(DSCR, Debt/EBITDA…) and per-entity/BU forecasts (GL-observed DSO/DPO) from any raw GL, trial balance or " +
-      "FEC export (CSV/TSV, SAP, QuickBooks, Xero, Sage…). File size is NOT a limit: up to 2 MB the file " +
-      "can be sent inline with kphi_analyze_ledger; any larger file (up to 500 MB) goes through " +
-      "kphi_request_upload (the user drops the file on a secure link, then kphi_get_analysis returns the " +
-      "result). Call one of these two tools whenever a user provides accounting data and asks for KPIs, " +
-      "covenants, statements or a forecast, instead of estimating yourself: on a real file, estimation " +
-      "truncates or misclassifies. Multi-entity files are summed as-is (no FX conversion, no intercompany " +
-      "elimination); per-entity views are reliable. " +
+      "FEC export (CSV/TSV, SAP, QuickBooks, Xero, Sage…). A big file is the reason to use this tool, never " +
+      "a reason to skip it: an assistant cannot reliably read or total a large ledger itself, and estimating " +
+      "truncates or misclassifies. Call kphi_analyze_ledger whenever a user provides accounting data and asks " +
+      "for KPIs, covenants, statements or a forecast: up to 2 MB the file can be sent inline; above 2 MB " +
+      "(up to 500 MB) call kphi_request_upload, the user drops the file on a secure link, then " +
+      "kphi_get_analysis returns the result. Multi-entity files are summed as-is (no FX conversion, no " +
+      "intercompany elimination); per-entity views are reliable. " +
       "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed; full results returned inline " +
       "(the dashboard link is additive)."
   });

@@ -167,20 +167,38 @@ table{font-size:16.5px;width:100%;border-collapse:collapse;font-size:13px;margin
 th{color:#898781;font-weight:500;text-align:left;padding:6px 8px;font-size:12px}
 td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .cta{display:inline-block;background:#e8e6e1;color:#111013;font-weight:600;border-radius:10px;padding:11px 18px;text-decoration:none;margin-top:18px}
+/* PDF (fondateur 2026-10-14) : sombre, aux couleurs K-Φ — fond #07070f,
+   cartes #13131f, bandeau aurora (#C5B358 · #36D6A0 · #534AB7 · #E6007E),
+   même palette que l'app. Les fonds s'impriment (print-color-adjust), les
+   graphiques sont redimensionnés à la largeur A4 avant l'impression. */
+.pcover,.pfoot{display:none}
+@page{size:A4;margin:0}
 @media print{
-  /* PDF = la même page, tout déplié, encre économe : le lecteur imprime ce
-     qu'il voit, sans dépendance ni rendu serveur. */
-  body{background:#fff;color:#111}
-  .wrap{max-width:none;padding:0}
-  .tile,.panel,table,.cav{background:#fff !important;border-color:#ccc !important;color:#111 !important}
-  .mut,.l{color:#555 !important}
-  .mbtn,.ctah,.cta,#bF,select{display:none !important}
+  html,body{background:#07070f !important;color:#e8ecf5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;width:auto;padding:12mm 13mm;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  .pcover{display:block;margin:-12mm -13mm 10mm;padding:12mm 13mm 8mm;background:#0b0b16;border-bottom:1px solid #23233a;position:relative}
+  .pcover:before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,#C5B358,#36D6A0 35%,#534AB7 65%,#E6007E)}
+  .pcover .brand{display:inline-block;font-size:30px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(90deg,#C5B358,#36D6A0 40%,#534AB7 70%,#E6007E);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .pcover .t{font-size:20px;font-weight:600;color:#e8ecf5;margin-top:4px}
+  .pcover .m{font-size:11.5px;color:#9a9ab8;margin-top:6px}
+  .hd{display:none !important}
+  .tile,.panel,.cov{background:#13131f !important;border:1px solid #23233a !important;color:#e8ecf5 !important}
+  table{background:transparent !important;color:#e8ecf5 !important}
+  td{border-top:1px solid #23233a !important}
+  .cav{background:#2a210c !important;color:#f5c04a !important}
+  .mut,.l,th{color:#9a9ab8 !important}
+  h2{color:#c8c8e0 !important;font-size:13px;letter-spacing:.06em;text-transform:uppercase;border-left:3px solid #36D6A0;padding-left:8px;break-after:avoid}
+  .mbtn,.ctah,.cta,#bF,select,#axlbl,label[for],#rrbox{display:none !important}
+  #scopebar{background:#13131f !important;border-color:#23233a !important}
+  .pscope{display:inline !important;font-weight:600}
   details{display:block}details>summary{list-style:none}
   #fcp{display:block !important}
-  h1,h2{color:#111}
-  tr,.tile,.chartbox{break-inside:avoid}
+  h1{color:#e8ecf5}
+  tr,.tile,.chartbox,.cav{break-inside:avoid}
   a[href]:after{content:""}
+  .pfoot{display:block;margin-top:14mm;padding-top:4mm;border-top:1px solid #23233a;font-size:10.5px;color:#6a6a8e}
 }
+.pscope{display:none}
 .mbtn{background:#1b1a1e;color:#b7b5af;border:1px solid #2c2b30;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
 .ctah{background:#e8e6e1;color:#111013;font-weight:600;border-radius:9px;padding:8px 14px;text-decoration:none;font-size:13px;white-space:nowrap}
 .chartbox{height:250px;position:relative;margin-top:6px;overflow:hidden}
@@ -190,6 +208,8 @@ td{padding:7px 8px;border-top:1px solid #232227}.r{text-align:right}
 .chartbox.sk{height:330px}
 h2{font-size:14px;color:#b7b5af;margin:22px 0 4px}
 </style></head><body><div class="wrap">
+<div class="pcover"><div class="brand">K-Φ</div><div class="t">${T.title} ${esc(r.detected.period)}</div>
+<div class="m">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")}${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${new Date().toISOString().slice(0, 10)}</div></div>${/* i18n:fr-ok */ ""}
 <div class="hd"><h1>K-Φ — ${T.title} ${esc(r.detected.period)}</h1>
 <span class="mut" style="margin-left:auto">${esc(r.detected.format)} · ${esc(r.detected.genre ?? "")} ${CCY ? ` · ${esc(CCY)}` : ""} · ${r.detected.entries.toLocaleString("fr-FR")} ${r.locale === "fr" ? "écritures" : "entries"} · ${T.link24}</span>${/* i18n:fr-ok */ ""}
 <button class="mbtn" onclick="window.print()" style="margin-right:8px">${T.pdf}</button><a class="ctah" href="/a/${esc(analysisId)}/open">${T.open}</a></div>
@@ -635,6 +655,23 @@ try{if(window.__FC){
     else{_a.add(new Option(FT.allAx,'g:'));for(const b of _bu)_a.add(new Option(b,'b:'+b));}
   }
 }}catch(e){}
+/* Impression : panneau de projection ouvert, périmètre écrit en clair (les
+   listes déroulantes ne s'impriment pas), graphiques redimensionnés à la
+   largeur de la page A4 puis rendus à l'écran après. */
+(function(){
+  function charts(){try{return Object.values(Chart.instances||{});}catch(e){return [];}}
+  function before(){
+    try{if(window.__FC&&!FCON&&typeof fcpanel==='function')fcpanel();}catch(e){}
+    for(const id of ['fcs','fcax']){const el=document.getElementById(id);if(!el||!el.options.length)continue;
+      let sp=document.getElementById('p_'+id);if(!sp){sp=document.createElement('span');sp.id='p_'+id;sp.className='pscope';el.after(sp);}
+      sp.textContent=el.options[el.selectedIndex]?el.options[el.selectedIndex].text:'';}
+    document.body.style.width='184mm';
+    for(const c of charts()){try{c.resize();}catch(e){}}
+  }
+  function after(){document.body.style.width='';for(const c of charts()){try{c.resize();}catch(e){}}}
+  window.addEventListener('beforeprint',before);window.addEventListener('afterprint',after);
+})();
 </script>
+<div class="pfoot">${r.locale === "fr" ? "Analyse produite par le moteur K-Φ à partir du grand livre fourni. Chiffres traçables jusqu'à l'écriture." : "Analysis produced by the K-Φ engine from the ledger provided. Every figure is traceable to the entry."} · k-phi.com · ${esc(analysisId)}</div>${/* i18n:fr-ok */ ""}
 </div></body></html>`;
 }

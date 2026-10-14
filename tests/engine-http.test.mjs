@@ -16,7 +16,7 @@ const LEDGER = `Date,Account,AccountName,Debit,Credit
 `;
 
 /** Moteur simulé. failImports = nombre de 500 à servir sur /api/gl/import. */
-function mockEngine({ failImports = 0, closeGate = false } = {}) {
+function mockEngine({ failImports = 0, closeGate = false, withStmt = false } = {}) {
   const calls = { tenant: 0, imports: [], statements: 0, openLink: 0, fc: [], cfgPuts: [] };
   let importFails = failImports;
   let gateOpen = !closeGate;
@@ -56,6 +56,10 @@ function mockEngine({ failImports = 0, closeGate = false } = {}) {
           _dpoByEntity: { E1: { ap: 5, cogs: 50, dpo: 42.1, _denomSource: "gl" } },
           _dsoByBU: { B1: { ar: 10, rev: 100, dso: 36.5, _denomSource: "fallback" } },
           _dpoByBU: {} } };
+      if (q.get("vers") && withStmt) {
+        calls.versCalls = (calls.versCalls ?? 0) + 1;
+        return ok({ ...base, stmt: { pl: q.get("vers").split(",").map(v => ({ ver: v, rows: [{ key: "_NET_REV", amt: 777 }, { key: "_EBITDA", amt: 70 }, { key: "_NI", amt: 7 }] })) } });
+      }
       if (q.get("fc")) {
         calls.fc.push({ entity: q.get("entity"), bu: q.get("bu"), horizon: q.get("horizon") });
         const scoped = q.get("entity") === "E1" ? 41 : q.get("bu") === "B1" ? 39 : 37;
@@ -386,4 +390,13 @@ test("run rate : « Project new invoices » coché sur les règles AR du sandbox
   assert.equal(r.forecast.global.series[0].sales, 999, "défaut : projection avec nouvelles factures");
   assert.equal(r.forecast.global.series_existing[0].sales, 120, "sans : créances existantes seulement");
   assert.equal(r.forecast.by_entity.E1.series_existing[0].impliedDSO, 41);
+});
+
+test("flux d'un périmètre : UN appel (P&L cumulé du moteur, dernière colonne de l'année), pas un par mois", async () => {
+  const calls = mockEngine({ withStmt: true });
+  const before = calls.statements;
+  const r = await engine().analyze({ content: LEDGER });
+  assert.equal(r.forecast.by_entity.E1.kpi.revenue, 777, "colonne cumulée de la dernière période");
+  assert.equal(r.forecast.by_entity.E1.kpi.ebitda_margin, 70 / 777 * 100);
+  assert.ok(calls.versCalls >= 1);
 });

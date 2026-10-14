@@ -313,9 +313,9 @@ test("forecast : appels fc par scope (global + entité + BU), lignes moteur rela
   assert.equal(r.forecast.by_entity.E1.series[0].impliedDSO, 41, "projection DE L'ENTITÉ, pas du groupe");
   assert.equal(g._flowDetails, undefined, "champs privés lourds élagués");
   /* méthodes : DSO/DPO observés GL avec provenance (critère 3) */
-  assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 37, source: "gl_observed", basis: 100 },
-    "basis = CA du périmètre calculé moteur, relayé pour le drill");
-  assert.equal(r.forecast.methods.dso_by_bu.B1.source, "fallback");
+  assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 30, source: "gl_observed", basis: 100 },
+    "DSO = celui du run SUR le périmètre (même chiffre que sa tuile) ; basis relayé pour le drill");
+  assert.equal(r.forecast.methods.dso_by_bu.B1.value, 30, "BU : DSO du run scopé, pas la carte groupée");
 });
 
 test("gen_fc_rules demandé au seed ; fc_rules>0 → note de provenance des règles auto", async () => {
@@ -331,8 +331,9 @@ test("KPI par périmètre : mappés par la MÊME table que le groupe (clés inve
   const r = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
   const k = r.forecast.by_entity.E1.kpi;
   assert.ok(k, "les KPI de périmètre existent");
-  assert.equal(k.revenue, 150, "clé « Net Revenue » du moteur reconnue (et non un alias inventé)");
-  assert.equal(k.net_income, 150);
+  assert.equal(k.revenue, 300, "clé « Net Revenue » reconnue ET sommée sur les 2 mois de l'exercice (pas le dernier mois seul)");
+  assert.equal(k.net_income, 300);
+  assert.equal(k.net_margin, 100, "marge en %, recalculée sur l'exercice");
   assert.equal(k.dso, 30, "ratios du périmètre inclus");
 });
 

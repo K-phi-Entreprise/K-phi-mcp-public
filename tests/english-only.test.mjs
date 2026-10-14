@@ -129,7 +129,7 @@ test("kphi_analyze_ledger — covenant breach alert wording", async () => {
 
 test("kphi_analyze_ledger — oversized inline content is refused in English", async () => {
   const c = await boot();
-  const out = await c.callTool({ name: "kphi_analyze_ledger", arguments: { content: "x".repeat(2 * 1024 * 1024 + 1) } });
+  const out = await c.callTool({ name: "kphi_analyze_ledger", arguments: { content: "x".repeat(24 * 1024 * 1024 + 1) } });
   assert.ok(out.isError);
   assertEnglish("kphi_analyze_ledger (too large)", out);
 });

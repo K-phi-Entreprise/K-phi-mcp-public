@@ -102,7 +102,7 @@ const I18N = {
         sections: ["📈 Profitability", "💧 Cash & cycle", "🏦 Structure & debt"], other: "Other",
         cta_tail: "Balance sheet · P&L · Cash flow · entity & BU drill-down · 30 days free once you confirm your email.",
         old11: "Projection not available on this analysis (pre-1.1 contract) — re-run the analysis to get it.",
-        blocked: "Projection blocked by the engine for this scope: ", prov: "Provisional forecast, subject to financial close: period {p} has not been closed yet. Figures will move once the close is done and the books are final.", dNA: "n/a", threshold: "threshold", covenant: "covenant",
+        blocked: "Projection blocked by the engine for this scope: ", prov: "Provisional forecast, subject to financial close: period {p} has not been closed yet. Figures will move once the close is done and the books are final.", dNA: "n/a", rrLabel: "Project new invoices", rrHint: "(run rate)", rrOn: "Run rate: new invoices are assumed to continue at the average of the last 3 closed months, and collected at the observed DSO. Untick Project new invoices to see only the receivables already on the books.", threshold: "threshold", covenant: "covenant",
         drill: "Breakdown by entity", drillP: "Projection by entity, month by month (stacked)",
         realBar: "Actual revenue", projBar: "Projected revenue", ebitdaLine: "Actual EBITDA",
         projCash: "Projected collections (cash)", noD: "scopes excluded (implied DSO out of range)",
@@ -123,7 +123,7 @@ const I18N = {
         sections: ["📈 Rentabilité", "💧 Trésorerie & cycle", "🏦 Structure & dette"], other: "Autres",
         cta_tail: "Bilan · P&L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.",
         old11: "Projection non disponible sur cette analyse (antérieure au contrat 1.1) — relancez l'analyse pour l'obtenir.",
-        blocked: "Projection bloquée par le moteur pour ce périmètre : ", prov: "Prévision provisoire, sous réserve de clôture : la période {p} n'est pas encore clôturée. Les chiffres bougeront une fois la clôture faite et les comptes définitifs.", dNA: "n/d", threshold: "seuil", covenant: "covenant",
+        blocked: "Projection bloquée par le moteur pour ce périmètre : ", prov: "Prévision provisoire, sous réserve de clôture : la période {p} n'est pas encore clôturée. Les chiffres bougeront une fois la clôture faite et les comptes définitifs.", dNA: "n/d", rrLabel: "Projeter les nouvelles factures", rrHint: "(run rate)", rrOn: "Run rate : la facturation est supposée se poursuivre à la moyenne des 3 derniers mois clos, encaissée au DSO observé. Décochez pour ne voir que les créances déjà au bilan.", threshold: "seuil", covenant: "covenant",
         drill: "Décomposition par entité", drillP: "Projection par entité, mois par mois (empilée)",
         realBar: "CA réel", projBar: "CA projeté", ebitdaLine: "EBITDA réel",
         projCash: "Encaissements projetés", noD: "périmètres écartés (DSO implicite hors plage)",
@@ -199,6 +199,7 @@ ${caveats.length ? `<div class="cav">⚠ <b>${T.caveats}</b> — ${caveats.map(e
 ${series.length > 1 ? `<div class="chartbox"><canvas id="c"></canvas></div>` : ""}
 <div id="fcp" style="display:none;margin-top:8px">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    ${r.forecast && (r.forecast as { run_rate?: boolean }).run_rate ? `<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:13.5px"><input type="checkbox" id="rrbox" checked onchange="setRR(this.checked)" style="accent-color:#eda100;width:16px;height:16px;cursor:pointer">${T.rrLabel} <span class="mut">${T.rrHint}</span></label>` : ""}
     <span class="mut" style="margin-left:auto">${T.horizon} ${(r.forecast?.horizon_months ?? 6)} ${T.months}</span>
   </div>
   <div id="fcblocked" class="cav" style="display:none"></div>
@@ -363,7 +364,7 @@ draw();
    grand vide (régression vue en prod). */
 window.addEventListener('load',function(){try{if(typeof draw2==='function')draw2();}catch(e){}});</script>` : ""}
 
-<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, prov: T.prov, dNA: T.dNA, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, dayU: T.dayU, derivedGl: T.derivedGl, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
+<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, prov: T.prov, dNA: T.dNA, rrOn: T.rrOn, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, dayU: T.dayU, derivedGl: T.derivedGl, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,CH2=null,DDIM='l';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
@@ -472,6 +473,18 @@ function fcpanel(){
   document.getElementById('fcdrill').style.display=(FCON&&Object.keys(window.__FC.by_entity||{}).length>1)?'block':'none';
   if(FCON){fcdraw();}else if(typeof draw==='function'){draw();}
 }
+/* « Project new invoices (run rate) » : coché par défaut. Les deux
+   projections viennent du moteur (series = avec, series_existing = sans) ;
+   la case échange les séries de chaque périmètre et redessine. */
+var RR=!!(window.__FC&&window.__FC.run_rate);
+function setRR(on){
+  RR=!!on;const F=window.__FC;if(!F)return;
+  const all=[F.global].concat(Object.values(F.by_entity||{}),Object.values(F.by_bu||{}));
+  for(const sc of all){if(!sc||!sc.series_existing)continue;
+    if(!sc.series_rr)sc.series_rr=sc.series;
+    sc.series=RR?sc.series_rr:sc.series_existing;}
+  if(FCON)fcdraw();
+}
 function fcscope(){const v=window.__SCOPE||'g:';const[k,id]=v.split(':');
   return k==='e'?window.__FC.by_entity[id]:k==='b'?window.__FC.by_bu[id]:window.__FC.global;}
 function fcdraw(){
@@ -514,7 +527,7 @@ function fcdraw(){
     const proj=S.map(()=>null).concat(rows.map(x=>hasSales?(x.sales??null):(x.collections??null)));
     const projLbl=hasSales?FT.projBar:FT.projCash;
     var dn=document.getElementById('fcdoc');
-    if(dn){dn.style.display=hasSales?'none':'block';dn.textContent='ℹ '+FT.noBudget;}
+    if(dn){dn.style.display=(hasSales&&!RR)?'none':'block';dn.textContent='ℹ '+((RR&&hasSales)?FT.rrOn:FT.noBudget);}
     if(CH)CH.destroy();
     CH=new Chart(document.getElementById('c'),{data:{labels,datasets:[
       {type:'bar',label:FT.realBar,data:rev,backgroundColor:'#2a78d6',borderRadius:4,maxBarThickness:24},

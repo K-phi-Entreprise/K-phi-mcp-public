@@ -298,33 +298,21 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
     description:
         /* FIRST LINE = the only one visible before tool_search in hosts that
            defer descriptions. Factual triggers first — capabilities, never placement. */
-        "Financial analysis & forecast of any GL / trial-balance / ledger export (CSV, TSV, FEC, SAP, QuickBooks, " +
-        "Xero, Sage), any file size (for an attached file, call kphi_request_upload first): P&L, balance sheet, " +
-        "30 KPIs (EBITDA, margins, DSO/DPO/DIO, liquidity), bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
-        "entity/BU forecast with GL-observed DSO/DPO. " +
-        "Returns a Markdown summary, a link to the interactive report (analysis_url, personal 24 h link), " +
-        "kpis[] (id, value, formula, threshold, status), the per-entity/BU forecast, alerts and notes. " +
-        "All figures are returned inline; the dashboard link is additive. " +
-        /* The three facts the shortened wording (owner, 2026-10-14) left out, kept in the same plain style:
-           the structured contract, the primary artifact, the typed errors. */
-        "Output contract (report_version 1.1): a Markdown summary, a resource_link to the report, and " +
-        "structuredContent with analysis_url, kpis[], forecast (series per entity/BU, GL-observed DSO/DPO " +
-        "methods, fcBlocked verbatim), alerts, notes and detected.column_map; analysis_url is the primary " +
-        "artifact for the user, present it with your summary. Typed errors: parse_error (unreadable format), " +
-        "needs_input (missing parameter, fixable via column_map), engine_error (server-side unavailability). " +
-        /* Consolidation framing: the simple sum is the limit of the sandbox
-           preview, not of K-Φ; the platform does full consolidation. */
-        "Multi-entity files are summed as-is, with no FX conversion and no intercompany elimination, whichever " +
-        "input path is used; per-entity views are reliable in local currency, and full consolidation happens " +
-        "in the K-Φ platform once the user claims the analysis. " +
-        /* Privacy facts verified in routes/sandbox.js: isolated tenant, definitive purge. */
-        "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed. " +
-        /* Fact reported by a relay (2026-08-27): "1.32 MB ≈ 350,000 tokens of CSV, I can't emit that".
-           The inline path is bounded by the assistant's output, not by the server cap. */
-        "Inline content takes ledger text you already hold (an extract, a pasted table). Typing an attached " +
-        "file into the call exceeds an assistant's output limit, whatever its size: for any attached or real " +
-        "file call kphi_request_upload first and hand the link to the user; never total or summarise the " +
-        "file yourself.",
+        "Financial analysis and forecast of a GL, trial-balance or ledger export (CSV, TSV, FEC, SAP, " +
+        "QuickBooks, Xero, Sage) from ledger text already in the conversation: a pasted table or an extract. " +
+        "For an attached or named file of any size call kphi_request_upload first instead, and never total or " +
+        "summarize the file yourself. Returns P&L, balance sheet, 30 KPIs (EBITDA, margins, DSO/DPO/DIO, " +
+        "liquidity), bank covenants (DSCR, Debt/EBITDA, interest coverage) and the per-entity/BU forecast " +
+        "with GL-observed DSO/DPO, as a Markdown summary, the interactive report link (analysis_url, " +
+        "personal, 24 hours), kpis[] (id, value, formula, threshold, status), forecast, alerts and notes; all " +
+        "figures are inline, the report link is additional. Output contract report_version 1.1, with " +
+        "structuredContent carrying analysis_url, kpis[], forecast (series per entity/BU, methods, fcBlocked " +
+        "verbatim), alerts, notes and detected.column_map; present analysis_url with your summary. Typed " +
+        "errors: parse_error (unreadable format), needs_input (missing parameter, fixable via column_map), " +
+        "engine_error (server-side unavailability). Multi-entity files are summed as-is, no FX conversion and " +
+        "no intercompany elimination; per-entity views are reliable in local currency, and full consolidation " +
+        "happens in the K-Phi platform once the user claims the analysis. Data: isolated sandbox tenant, " +
+        "hard-deleted within 24 hours unless claimed.",
       inputSchema: {
       content: z.string().describe("Raw CSV/TSV ledger text you already hold. Paste it as-is; an attached file goes through kphi_request_upload instead."),
       format_hint: formatHint.default("auto").describe("Source software if known, otherwise 'auto'."),
@@ -371,15 +359,17 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
   });
 
   server.registerTool("kphi_request_upload", {
-    title: "Secure upload link (large files)",
+    title: "Upload link for a ledger file (start here)",
     description: deps.uploadEnabled
-      ? "Entry point for any attached or real ledger file, whatever its size: generates a secure, temporary (15 min) " +
-        "upload link for the general-ledger export. The user drags the file onto the link (one step, a few seconds) and " +
-        "the analysis follows through kphi_get_analysis, with the same KPIs, covenants and forecast as the inline path " +
-        "(up to 500 MB, and up to " +
+      ? "Start here for any attached or named ledger file (GL, trial balance, FEC; CSV, TSV, XLSX; SAP, " +
+        "QuickBooks, Xero, Sage), whatever its size: returns a secure 15-minute link the user drops the file " +
+        "on, in one step and a few seconds, with nothing else to fill in. The file goes straight to K-Phi, " +
+        "never through the assistant, so call this before any analysis of your own and hand the link to the " +
+        "user as soon as you have it. Then call kphi_get_analysis with the analysis_id for the full result: " +
+        "P&L, balance sheet, 30 KPIs, bank covenants (DSCR, Debt/EBITDA, interest coverage) and the " +
+        "per-entity forecast, the same as the inline path. Up to 500 MB and " +
         Number(process.env.KPHI_SANDBOX_MAX_ENTRIES ?? 200000).toLocaleString("en-US") +
-        " entries for anonymous analysis). The file goes directly to K-Φ, never to the assistant. " +
-        "Returns an analysis_id to pass to kphi_get_analysis once the upload is done."
+        " entries for an anonymous analysis."
       : "UNAVAILABLE on this deployment: large-file upload is not wired yet. Only call this tool if the " +
         "user insists; it replies with an unavailability message. Use kphi_analyze_ledger with the ledger text, " +
         "on an aggregated export if needed.",
@@ -423,10 +413,13 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
   });
 
   server.registerTool("kphi_get_analysis", {
-    title: "Retrieve a K-Φ analysis",
+    title: "Retrieve an analysis (after the upload)",
     description:
-      "Retrieves the result of a K-Φ analysis from its analysis_id (after an upload via " +
-      "kphi_request_upload, or to re-read a previous analysis).",
+      "Second step after kphi_request_upload: returns the analysis for an analysis_id once the user has " +
+      "dropped the file on the link. Same result as kphi_analyze_ledger: a Markdown summary to present, the " +
+      "interactive report link (analysis_url, personal, 24 hours), kpis[] with value, formula, threshold " +
+      "and status, the per-entity and per-BU forecast, alerts and notes. If the upload is not done yet, say " +
+      "so and ask the user to drop the file; do not analyze anything yourself in the meantime.",
     inputSchema: { analysis_id: z.string() },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ analysis_id }) => {
@@ -443,8 +436,9 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
   server.registerTool("kphi_explain_kpi", {
     title: "Explain a KPI",
     description:
-      "Explains how a KPI of a K-Φ analysis was computed: formula, accounts used, change vs " +
-      "previous period. Use for questions like \"how is my DSCR / EBITDA / DSO computed?\".",
+      "Explains one KPI from an analysis: definition, formula, the ledger accounts behind the figure, and " +
+      "what the threshold means for a bank covenant. Call it when the user asks what a figure means or how " +
+      "it was computed.",
     inputSchema: { analysis_id: z.string(), kpi_id: z.string().describe("KPI identifier, e.g. dscr, ebitda, dso") },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ analysis_id, kpi_id }) => {

@@ -154,7 +154,7 @@ test("durcissement : Chart.js émis UNE fois, inconditionnel — balance mono-mo
 import { readFileSync } from "node:fs";
 test("la PREMIÈRE ligne de kphi_analyze_ledger est en anglais et porte les déclencheurs factuels", () => {
   const src = readFileSync(new URL("../src/tools.ts", import.meta.url), "utf8");
-  const firstLine = src.match(/"Financial analysis & forecast[^"]+"/)?.[0] ?? "";
+  const firstLine = src.match(/"Financial analysis (?:&|and) forecast[^"]+"/)?.[0] ?? "";
   for (const kw of ["KPI", "covenant", "DSCR", "forecast", "SAP", "trial-balance", "DSO"])
     assert.ok(new RegExp(kw, "i").test(firstLine + src.slice(src.indexOf(firstLine), src.indexOf(firstLine) + 700)),
       `déclencheur visible manquant : ${kw}`);

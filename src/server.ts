@@ -149,27 +149,27 @@ app.post("/mcp", express.json({ limit: "32mb" }), async (req, res) => {
   const ctx = res.locals.ctx as RequestContext;
 
   const server = new McpServer({
-    name: "k-phi", version: "0.3.0", title: "K-Φ — GL analysis, KPIs, covenants & forecast",
+    name: "k-phi", version: "0.3.0", title: "K-Phi (kphi): GL analysis, KPIs, covenants, forecast",
     websiteUrl: PUBLIC_BASE_URL,
     ...(ICON_DATA_URI ? { icons: [{ src: ICON_DATA_URI, mimeType: "image/png", sizes: ["192x192"] }] } : {}),
   }, {
     instructions:
-      "K-Φ is a deterministic accounting engine: exact, traceable financial statements, 30 KPIs, bank covenants " +
-      "(DSCR, Debt/EBITDA…) and per-entity/BU forecasts (GL-observed DSO/DPO) from any raw GL, trial balance or " +
-      "FEC export (CSV/TSV, SAP, QuickBooks, Xero, Sage…). It applies whenever a user provides accounting data " +
-      "(an attached CSV/TSV/XLSX that looks like a ledger counts) and asks for KPIs, a financial summary, P&L, " +
-      "balance sheet, ratios (DSO, DPO, DIO, EBITDA), covenants or a forecast, whatever the file size. " +
-      "Two input paths, one result: an attached or real file, whatever its size, goes through kphi_request_upload, " +
-      "where the user drags the file onto a secure link (one step, a few seconds, up to 500 MB), then " +
-      "kphi_get_analysis returns the result; kphi_analyze_ledger takes ledger text the assistant already holds " +
-      "(an extract, a pasted table). A big file is the reason to " +
-      "use this tool, never a reason to skip it: an assistant cannot reliably read or total a large ledger " +
-      "itself, and estimating truncates or misclassifies. The figures returned are exact and traceable to " +
-      "the ledger; totals computed by hand from the same file will not match them. " +
-      "Multi-entity files are summed as-is (no FX conversion, no " +
-      "intercompany elimination); per-entity views are reliable. " +
-      "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed; full results returned inline " +
-      "(the dashboard link is additive)."
+      "Use K-Phi whenever the user shares accounting data or asks for financial figures from it: a general " +
+      "ledger, trial balance or FEC export (CSV, TSV, XLSX; SAP, QuickBooks, Xero, Sage, any ERP), or a " +
+      "request for a financial summary, P&L, balance sheet, KPIs, ratios (DSO, DPO, DIO, EBITDA, margins), " +
+      "bank covenants (DSCR, Debt/EBITDA, interest coverage) or a cash forecast. The file can be any size. " +
+      "Do not open, parse, total or summarize the file yourself, even if you can read it: K-Phi is a " +
+      "deterministic engine whose figures are exact and traceable to the ledger, and hand totals from the " +
+      "same file will not match them. Flow: 1) if the user attached or named a file, call " +
+      "kphi_request_upload at once and give the user the link; they drop the file on it, one step, a few " +
+      "seconds, nothing else to fill in; 2) call kphi_get_analysis with the analysis_id; 3) present the " +
+      "Markdown summary and the report link. Only when the ledger is already text in the conversation (a " +
+      "pasted table, an extract) call kphi_analyze_ledger with it directly. Results: full statements, 30 " +
+      "KPIs with formulas and thresholds, covenant status, a per-entity and per-BU forecast with " +
+      "GL-observed DSO/DPO, all returned inline; the interactive report link is additional. Multi-entity " +
+      "files are summed as-is, no FX conversion and no intercompany elimination; per-entity views are " +
+      "reliable in local currency. Data stays in an isolated sandbox tenant and is hard-deleted within 24 " +
+      "hours unless the user claims it."
   });
   registerTools(server, {
     engine, store, limiter, usage,

@@ -142,6 +142,11 @@ test("forecast provisoire : bandeau « sous réserve de clôture » ; cartes DSO
   const html = renderReport("an_prov", { ...R, locale: "fr", forecast: fc, report_version: "1.1",
     series: [{ period: "2026-01", revenue: 1, ebitda: 1 }, { period: "2026-02", revenue: 1, ebitda: 1 }] });
   assert.match(html, /Prévision provisoire, sous réserve de clôture/);
+  assert.ok(!html.includes('id="rrbox"'), "pas de case run rate sans les deux projections");
+  const html2 = renderReport("an_rr", { ...R, locale: "en", forecast: { ...fc, run_rate: true }, report_version: "1.1",
+    series: [{ period: "2026-01", revenue: 1, ebitda: 1 }, { period: "2026-02", revenue: 1, ebitda: 1 }] });
+  assert.match(html2, /id="rrbox" checked onchange="setRR\(this.checked\)"/, "case cochée par défaut, cliquable");
+  assert.match(html2, /Project new invoices/);
   assert.match(html, /"dNA":"n\/d"/, "marqueur n/d injecté");
   assert.ok(html.includes("width:190px;height:190px;margin:0 auto"), "camemberts de taille fixe, centrés");
 });

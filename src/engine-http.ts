@@ -176,6 +176,23 @@ export class KphiHttpEngine implements AnalysisEngine {
     const result = toAnalysisResult(parsed, position, monthly, input, periods);
     result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
     if (provisional && result.forecast) (result.forecast as Record<string, unknown>).provisional = provisional;
+    /* « Project new invoices (run rate) » : le réglage de l'app (règle AR,
+       runRate), allumé PAR DÉFAUT dans le rapport (fondateur 2026-10-14). On
+       garde les deux projections du moteur : avec (series, défaut) et sans
+       (series_existing = seulement les créances déjà au bilan) ; la case du
+       rapport bascule de l'une à l'autre sans rien recalculer. */
+    if (result.forecast && await this.setRunRate(sb.token, true)) {
+      try {
+        const f = result.forecast as unknown as { global: ScopeSeries; by_entity: Record<string, ScopeSeries>; by_bu: Record<string, ScopeSeries>; run_rate?: boolean };
+        const fcOnly = (p: { entity?: string; bu?: string }) =>
+          this.statements(sb.token, { asOf: last, ...p, fc: true, horizon: 6 }).then(x => slimFc(x.fc ?? [])).catch(() => null);
+        const [g, es, bs] = await Promise.all([fcOnly({}), Promise.all(entScopes.map(e => fcOnly({ entity: e }))), Promise.all(buScopes.map(b => fcOnly({ bu: b })))]);
+        const swap = (sc: ScopeSeries | undefined, rr: Array<Record<string, unknown>> | null) => {
+          if (!sc || !rr) return; sc.series_existing = sc.series; sc.series = rr; };
+        swap(f.global, g); entScopes.forEach((e, i) => swap(f.by_entity[e], es[i])); buScopes.forEach((b, i) => swap(f.by_bu[b], bs[i]));
+        f.run_rate = true;
+      } catch (e) { console.warn("run rate pass failed (non bloquant):", e instanceof Error ? e.message : e); }
+    }
     /* Noms lisibles : le dashboard affiche « 1000 — Meridian France » plutôt
        qu'un code nu, quand l'export porte les deux colonnes. */
     if (Object.keys(parsed.entityNames ?? {}).length) result.entity_names = parsed.entityNames;
@@ -231,6 +248,25 @@ export class KphiHttpEngine implements AnalysisEngine {
     const j = await r.json() as { tenantId?: string; name?: string; token?: string; error?: string };
     if (!r.ok || !j.token || !j.tenantId) throw new EngineError(`sandbox tenant: ${r.status} ${j.error ?? ""}`.trim(), r.status);
     return { tenantId: j.tenantId, name: j.name ?? "", token: j.token };
+  }
+
+  /** Coche « Project new invoices (run rate) » sur les règles AR du sandbox
+   *  (même champ runRate que l'app, push-workflow frSetRunRate). */
+  private async setRunRate(token: string, on: boolean): Promise<boolean> {
+    try {
+      const r = await this.fetch("/api/config/cfg", { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return false;
+      const j = await r.json() as { value?: string; _ver?: number } | null;
+      if (!j || j.value == null) return false;
+      const cfg = (typeof j.value === "string" ? JSON.parse(j.value) : j.value) as { flowRules?: Array<Record<string, unknown>> };
+      let n = 0;
+      for (const x of cfg.flowRules ?? []) if (x.dir === "Inflow" && (x.timing === "DSO" || x.timing === "aging")) { x.runRate = on; n++; }
+      if (!n) return false;
+      const w = await this.fetch("/api/config/cfg", { method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(j._ver ? { "X-Config-Ver": String(j._ver) } : {}) },
+        body: JSON.stringify(cfg) });
+      return w.ok;
+    } catch { return false; }
   }
 
   /** Lien signé (24 h) qui ouvre le tenant en lecture seule dans l'app K-Φ. */
@@ -437,6 +473,7 @@ const FC_KEEP = ["period", "sales", "amtSource", "arOpen", "collections", "arClo
 function slimFc(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   return rows.map(r => { const o: Record<string, unknown> = {}; for (const k of FC_KEEP) if (k in r) o[k] = r[k]; return o; });
 }
+type ScopeSeries = { series: Array<Record<string, unknown>>; series_existing?: Array<Record<string, unknown>> };
 type WcMap = Record<string, { dso?: number; dpo?: number; _denomSource?: string; [k: string]: unknown }>;
 type ScopeFc = { fc: Array<Record<string, unknown>>; blocked: unknown;
                  kpi?: Record<string, unknown>; ratios?: Record<string, unknown> | null;

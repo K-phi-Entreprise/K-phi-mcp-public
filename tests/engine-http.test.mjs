@@ -20,6 +20,7 @@ function mockEngine({ failImports = 0, closeGate = false } = {}) {
   const calls = { tenant: 0, imports: [], statements: 0, openLink: 0, fc: [], cfgPuts: [] };
   let importFails = failImports;
   let gateOpen = !closeGate;
+  let runRateOn = false;
   globalThis.fetch = async (url, init) => {
     const u = String(url);
     const ok = (body, status = 200) =>
@@ -37,6 +38,10 @@ function mockEngine({ failImports = 0, closeGate = false } = {}) {
       calls.imports.push(body);
       if (importFails > 0) { importFails--; return ok({ error: "Internal server error" }, 500); }
       return ok({ imported: body.entries.length });
+    }
+    if (u.includes("/api/config/cfg")) {
+      if (init && init.method === "PUT") { calls.cfgWrite = JSON.parse(init.body); calls.cfgVer = init.headers["X-Config-Ver"]; runRateOn = true; return ok({ saved: true }); }
+      return ok({ value: JSON.stringify({ flowRules: [{ acct: "11000", dir: "Inflow", timing: "DSO" }, { acct: "20000", dir: "Outflow", timing: "DPO" }] }), _ver: 3 });
     }
     if (u.includes("/api/config/fc_config")) {
       calls.cfgPuts.push({ auth: init.headers.Authorization, body: JSON.parse(init.body) });
@@ -57,6 +62,7 @@ function mockEngine({ failImports = 0, closeGate = false } = {}) {
         return ok({ ...base,
           fc: [{ period: "2025-04", sales: 120, impliedDSO: scoped, impliedDPO: 40, collections: 100,
                  payroll: 30, opex: 20, interest: 2, _flowDetails: { heavy: true }, _bgt: { x: 1 } }],
+          ...(runRateOn ? { fc: [{ period: "2025-04", sales: 999, collections: 888 }] } : {}),
           fcBlocked: null, ...(!gateOpen ? { fc: [], fcBlocked: { reason: "Period 2025-02 has not been closed.", kind: "close_gate", period: "2025-02" } } : {}) });
       }
       return ok(base);
@@ -308,9 +314,9 @@ test("forecast : appels fc par scope (global + entité + BU), lignes moteur rela
   /* la position porte fc=1 ; chaque entité et BU a son appel scopé */
   assert.ok(calls.fc.some(c => !c.entity && !c.bu), "appel global fc");
   assert.ok(calls.fc.some(c => c.entity === "E1"), "appel scopé entité");
-  const g = r.forecast.global.series[0];
+  const g = r.forecast.global.series_existing[0];   /* sans nouvelles factures : les lignes moteur du premier passage */
   assert.equal(g.impliedDSO, 37, "ligne moteur relayée telle quelle (global)");
-  assert.equal(r.forecast.by_entity.E1.series[0].impliedDSO, 41, "projection DE L'ENTITÉ, pas du groupe");
+  assert.equal(r.forecast.by_entity.E1.series_existing[0].impliedDSO, 41, "projection DE L'ENTITÉ, pas du groupe");
   assert.equal(g._flowDetails, undefined, "champs privés lourds élagués");
   /* méthodes : DSO/DPO observés GL avec provenance (critère 3) */
   assert.deepEqual(r.forecast.methods.dso_by_entity.E1, { value: 30, source: "gl_observed", basis: 100 },
@@ -369,4 +375,15 @@ test("porte de clôture absente : aucune écriture de config, pas de marque prov
   const res = await engine().analyze({ content: LEDGER });
   assert.equal(calls.cfgPuts.length, 0);
   assert.equal(res.forecast.provisional, undefined);
+});
+
+test("run rate : « Project new invoices » coché sur les règles AR du sandbox ; les deux projections relayées (défaut = avec)", async () => {
+  const calls = mockEngine();
+  const r = await engine().analyze({ content: LEDGER });
+  assert.equal(r.forecast.run_rate, true);
+  assert.equal(calls.cfgVer, "3", "écriture avec le verrou de version");
+  assert.deepEqual(calls.cfgWrite.flowRules.map(x => x.runRate), [true, undefined], "seules les règles AR (Inflow DSO/aging)");
+  assert.equal(r.forecast.global.series[0].sales, 999, "défaut : projection avec nouvelles factures");
+  assert.equal(r.forecast.global.series_existing[0].sales, 120, "sans : créances existantes seulement");
+  assert.equal(r.forecast.by_entity.E1.series_existing[0].impliedDSO, 41);
 });

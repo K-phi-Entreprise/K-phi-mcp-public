@@ -292,8 +292,8 @@ const SYN: Record<string, string[]> = {
   period: ["period", "periode", "monat", "poper", "fiscalperiod", "postingperiod", "accountingperiod", "periodname"],
   fy:     ["fiscalyear", "gjahr", "exercice", "annee", "fy", "year"],
   /* montants : comptable/local AVANT transaction/devise document */
-  dr:     ["accounteddr", "accountingcurrencydebitamount", "functionaldebit", "debit", "debitamount", "debitamt", "soll", "dr", "débit", "entereddr", "transactioncurrencydebitamount"],
-  cr:     ["accountedcr", "accountingcurrencycreditamount", "functionalcredit", "credit", "creditamount", "creditamt", "haben", "cr", "crédit", "enteredcr", "transactioncurrencycreditamount"],
+  dr:     ["accounteddr", "accountingcurrencydebitamount", "functionaldebit", "debitfunctional", "debitlocal", "debit", "debitamount", "debitamt", "soll", "dr", "débit", "entereddr", "transactioncurrencydebitamount"],
+  cr:     ["accountedcr", "accountingcurrencycreditamount", "functionalcredit", "creditfunctional", "creditlocal", "credit", "creditamount", "creditamt", "haben", "cr", "crédit", "enteredcr", "transactioncurrencycreditamount"],
   amount: ["hsl", "dmbtr", "amtloc", "amtcur", "amountinlocalcurrency", "amountincompanycodecurrency", "montant", "amount", "netamount", "solde", "net", "value", "betrag"],
   /* indicateur débit/crédit : SAP SHKZG (S/H), Sage X3 SENS (D/C)… */
   dc_ind: ["shkzg", "sens", "dcind", "debitcreditind", "debitcreditindicator", "debitcredit", "dcflag", "sh", "dc"],
@@ -310,7 +310,7 @@ const SYN: Record<string, string[]> = {
   /* Nom lisible de l'entité, quand l'export le porte à côté du code. */
   ename: ["entityname", "companyname", "nomsociete", "nomsociété", "raisonsociale", "butxt", "name1",
           "companytext", "societename", "libelleentite", "libellésociété", "legalentityname", "subsidiaryname"],
-  ccy:    ["devise", "currency", "currencycode", "ccy", "monnaie", "waehrung", "waers", "rhcur", "rtcur", "basecurr"],
+  ccy:    ["devise", "functionalcurrency", "localcurrency", "currency", "currencycode", "ccy", "monnaie", "waehrung", "waers", "rhcur", "rtcur", "basecurr"],
   tp:     ["tiers", "thirdparty", "counterparty", "compaux", "compauxnum", "auxiliaire", "customer", "vendor", "supplier", "partner", "lifnr", "kunnr", "contact", "contactname", "sourcename", "payee", "vendorid", "customerid", "vendorname", "customername", "suppliername", "businesspartner"],
   ref:    ["piece", "pièce", "pieceref", "reference", "ref", "document", "docnum", "journal", "xblnr", "zuonr", "refno", "referencenumber"],
   id:     ["id", "entryid", "ecriturenum", "belnr", "voucherno", "vouchernumber", "journalnumber", "transactionnumber", "numero", "num", "line", "ligne", "transactionid"],
@@ -401,9 +401,14 @@ function mapHeaders(header: string[], skip: Set<number> = new Set()): Partial<Re
     // 2) inclusion dans les deux sens, uniquement sur des synonymes assez longs
     //    pour ne pas être ambigus ("ncompte" ⊃ "compte", "accountnumber" ⊃ "account",
     //    mais jamais "dr"/"cr"/"id"/"ref" par sous-chaîne).
-    if (i < 0) i = norm.findIndex((h, idx) => free(idx) &&
-      (!exactOwner.has(h) || exactOwner.get(h) === key) &&
-      SYN[key].some(s => s.length >= 5 && (h.includes(s) || s.includes(h) && h.length >= 5)));
+    /* Deux passes : d'abord « l'en-tête CONTIENT le synonyme » (« Debit
+       (Transaction) » ⊃ debit), puis seulement l'inverse. Sans cet ordre,
+       un en-tête-devise comme « Transaction Currency » (⊂ le synonyme
+       transactioncurrencydebitamount) était pris pour la colonne Débit
+       parce qu'il précède la vraie colonne dans le fichier. */
+    const eligible = (h: string, idx: number) => free(idx) && (!exactOwner.has(h) || exactOwner.get(h) === key);
+    if (i < 0) i = norm.findIndex((h, idx) => eligible(h, idx) && SYN[key].some(s => s.length >= 5 && h.includes(s)));
+    if (i < 0) i = norm.findIndex((h, idx) => eligible(h, idx) && SYN[key].some(s => s.length >= 5 && s.includes(h) && h.length >= 5));
     if (i >= 0) { out[key] = i; used.add(i); }
   }
   return out;

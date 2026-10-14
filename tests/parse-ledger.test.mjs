@@ -181,3 +181,16 @@ test("axes analytiques : tous détectés, priorité respectée, choix possible",
   const byColumn = parseLedger(csv, "generic", { analyticAxis: "Cost Center" });
   assert.deepEqual(byColumn.bus.sort(), ["CC-1", "CC-2"], "choix par nom de colonne accepté");
 });
+
+test("multi-devise : « Transaction Currency » placée AVANT « Debit (Transaction) » n'est jamais prise pour le débit", () => {
+  const csv = "Company Code,Account,Posting Date,Transaction Currency,Debit (Transaction),Credit (Transaction),Functional Currency,Debit (Functional),Credit (Functional)\n" +
+    "CA01,1100,2026-01-05,CAD,100.00,0.00,CAD,100.00,0.00\n" +
+    "CA01,4000,2026-01-05,CAD,0.00,100.00,CAD,0.00,100.00\n";
+  const r = parseLedger(csv);
+  assert.equal(r.entries.length, 2);
+  const dr = r.entries.reduce((a, e) => a + e.dr, 0), cr = r.entries.reduce((a, e) => a + e.cr, 0);
+  assert.equal(dr, 100, "le débit lu est un montant, pas la devise");
+  assert.equal(cr, 100);
+  assert.equal(r.column_map.dr, "Debit (Functional)", "montants fonctionnels préférés aux montants de transaction");
+  assert.equal(r.column_map.ccy, "Functional Currency", "devise cohérente avec les montants lus");
+});

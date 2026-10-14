@@ -134,6 +134,18 @@ test("forecast : bouton toujours, __FC injecté échappé, méthodes avec proven
   assert.match(html, /Projection bloquée par le moteur/, "chemin fcBlocked rendu tel quel");
 });
 
+test("forecast provisoire : bandeau « sous réserve de clôture » ; cartes DSO/DPO listent toutes les entités (n/d si absent)", () => {
+  const fc = { horizon_months: 6, global: { series: [{ period: "2026-10", sales: 5 }], blocked: null },
+    provisional: { period: "2026-09", reason: "not closed" },
+    by_entity: { E1: { series: [{ period: "2026-10", sales: 5 }], blocked: null }, E2: { series: [], blocked: null } }, by_bu: {},
+    methods: { dso_by_entity: { E1: { value: 40, source: "gl_observed" } }, dpo_by_entity: {}, dso_by_bu: {}, dpo_by_bu: {} } };
+  const html = renderReport("an_prov", { ...R, locale: "fr", forecast: fc, report_version: "1.1",
+    series: [{ period: "2026-01", revenue: 1, ebitda: 1 }, { period: "2026-02", revenue: 1, ebitda: 1 }] });
+  assert.match(html, /Prévision provisoire, sous réserve de clôture/);
+  assert.match(html, /"dNA":"n\/d"/, "marqueur n/d injecté");
+  assert.ok(html.includes("width:190px;height:190px;margin:0 auto"), "camemberts de taille fixe, centrés");
+});
+
 test("forecast absent (analyse 1.0) : le bouton EXISTE quand même et explique (critère 6)", () => {
   const html = renderReport("an_old", { ...R, locale: "fr" });
   assert.match(html, /id="bF"[^>]*>Projeter/);

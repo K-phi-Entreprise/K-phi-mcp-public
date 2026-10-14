@@ -298,36 +298,27 @@ export function registerTools(server: McpServer, deps: ToolDeps) {
         "Xero, Sage), any file size (2 MB or more: call kphi_request_upload first): P&L, balance sheet, " +
         "30 KPIs (EBITDA, margins, DSO/DPO/DIO, liquidity), bank covenants (DSCR, Debt/EBITDA, interest coverage), " +
         "entity/BU forecast with GL-observed DSO/DPO. " +
-        "OUTPUT CONTRACT (report_version 1.1): " +
-        "1) a Markdown summary text; 2) a resource_link block to the interactive report; " +
-        "3) structuredContent with analysis_url (K-Φ dashboard: tiles, chart, covenants, Forecast button — " +
-        "personal 24 h link), kpis[] (id/value/formula/threshold/status), forecast (series per entity/BU, " +
-        "GL-observed DSO/DPO methods, fcBlocked verbatim), alerts, notes, detected.column_map. " +
-        "analysis_url is the primary artifact for the user: present it with your summary. " +
-        "Typed errors: parse_error (unreadable format), needs_input (missing parameter, fixable via " +
-        "column_map), engine_error (server-side unavailability). " +
+        "Returns a Markdown summary, a link to the interactive report (analysis_url, personal 24 h link), " +
+        "kpis[] (id, value, formula, threshold, status), the per-entity/BU forecast, alerts and notes. " +
+        "All figures are returned inline; the dashboard link is additive. " +
+        /* The three facts the shortened wording (owner, 2026-10-14) left out, kept in the same plain style:
+           the structured contract, the primary artifact, the typed errors. */
+        "Output contract (report_version 1.1): a Markdown summary, a resource_link to the report, and " +
+        "structuredContent with analysis_url, kpis[], forecast (series per entity/BU, GL-observed DSO/DPO " +
+        "methods, fcBlocked verbatim), alerts, notes and detected.column_map; analysis_url is the primary " +
+        "artifact for the user, present it with your summary. Typed errors: parse_error (unreadable format), " +
+        "needs_input (missing parameter, fixable via column_map), engine_error (server-side unavailability). " +
         /* Consolidation framing: the simple sum is the limit of the sandbox
-           PREVIEW, not of K-Φ — the platform does full consolidation.
-           State the limit AND the path. */
-        "Multi-entity files — READ CAREFULLY: whatever the input path (inline content OR upload link), THIS " +
-        "TOOL ALWAYS aggregates as a simple sum. It never converts FX and never eliminates intercompany flows; " +
-        "the upload link changes the file size limit, NOT the accounting method. Per-entity views " +
-        "(forecast.by_entity, DSO/DPO methods, basis) are each in local currency and reliable as-is. " +
-        "Full consolidation — FX at your own rates, intercompany matching & elimination — is a SEPARATE STEP " +
-        "outside this tool: the user claims the analysis in the K-Φ platform (free 30 days, same tenant, link " +
-        "in the dashboard). Do not promise converted or eliminated figures from this tool's output. " +
-        /* Privacy facts verified in routes/sandbox.js: isolated tenant,
-           definitive purge, full result inline — the link is ADDITIVE. */
-        "Data: isolated sandbox tenant, PERMANENTLY deleted (hard delete) within 24 h if not claimed; " +
-        "no reuse. All KPIs, alerts and the forecast are returned INLINE in structuredContent — " +
-        "the dashboard link is additive, nothing is locked behind it. " +
-        /* Fact reported by a relay (2026-08-27): "1.32 MB ≈ 350,000 tokens
-           of CSV — I can't emit that". The inline path is bounded by the
-           assistant's OUTPUT, not by the server cap: say so. */
-        "INPUT PATHS — content accepts raw CSV up to 2 MB, but an assistant typing the file into the call is " +
-        "limited by its own output (~a few hundred KB at best): for any real file, call kphi_request_upload " +
-        "first — the user uploads via a link (≤ 500 MB) and the file reaches the engine without transiting " +
-        "through you. Normal path for a real file: kphi_request_upload (link ≤ 500 MB); " +
+           preview, not of K-Φ; the platform does full consolidation. */
+        "Multi-entity files are summed as-is, with no FX conversion and no intercompany elimination, whichever " +
+        "input path is used; per-entity views are reliable in local currency, and full consolidation happens " +
+        "in the K-Φ platform once the user claims the analysis. " +
+        /* Privacy facts verified in routes/sandbox.js: isolated tenant, definitive purge. */
+        "Data: isolated sandbox tenant, hard-deleted within 24 h unless claimed. " +
+        /* Fact reported by a relay (2026-08-27): "1.32 MB ≈ 350,000 tokens of CSV, I can't emit that".
+           The inline path is bounded by the assistant's output, not by the server cap. */
+        "Inline content accepts raw CSV up to 2 MB, but typing a real file into the call exceeds an " +
+        "assistant's output limit: for any real file use kphi_request_upload (link up to 500 MB) and keep " +
         "inline content for small extracts.",
       inputSchema: {
       content: z.string().describe("Raw CSV/TSV file content (≤ 2 MB). Paste the content as-is."),

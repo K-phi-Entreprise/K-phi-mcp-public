@@ -102,7 +102,7 @@ const I18N = {
         sections: ["📈 Profitability", "💧 Cash & cycle", "🏦 Structure & debt"], other: "Other",
         cta_tail: "Balance sheet · P&L · Cash flow · entity & BU drill-down · 30 days free once you confirm your email.",
         old11: "Projection not available on this analysis (pre-1.1 contract) — re-run the analysis to get it.",
-        blocked: "Projection blocked by the engine for this scope: ", threshold: "threshold", covenant: "covenant",
+        blocked: "Projection blocked by the engine for this scope: ", prov: "Provisional forecast, subject to financial close: period {p} has not been closed yet. Figures will move once the close is done and the books are final.", dNA: "n/a", threshold: "threshold", covenant: "covenant",
         drill: "Breakdown by entity", drillP: "Projection by entity, month by month (stacked)",
         realBar: "Actual revenue", projBar: "Projected revenue", ebitdaLine: "Actual EBITDA",
         projCash: "Projected collections (cash)", noD: "scopes excluded (implied DSO out of range)",
@@ -123,7 +123,7 @@ const I18N = {
         sections: ["📈 Rentabilité", "💧 Trésorerie & cycle", "🏦 Structure & dette"], other: "Autres",
         cta_tail: "Bilan · P&L · Flux · drill par entité et BU · 30 j gratuits en confirmant votre email.",
         old11: "Projection non disponible sur cette analyse (antérieure au contrat 1.1) — relancez l'analyse pour l'obtenir.",
-        blocked: "Projection bloquée par le moteur pour ce périmètre : ", threshold: "seuil", covenant: "covenant",
+        blocked: "Projection bloquée par le moteur pour ce périmètre : ", prov: "Prévision provisoire, sous réserve de clôture : la période {p} n'est pas encore clôturée. Les chiffres bougeront une fois la clôture faite et les comptes définitifs.", dNA: "n/d", threshold: "seuil", covenant: "covenant",
         drill: "Décomposition par entité", drillP: "Projection par entité, mois par mois (empilée)",
         realBar: "CA réel", projBar: "CA projeté", ebitdaLine: "EBITDA réel",
         projCash: "Encaissements projetés", noD: "périmètres écartés (DSO implicite hors plage)",
@@ -298,10 +298,10 @@ function drawPies(){
   rows.sort(function(a,b){return b.rev-a.rev;});
   var PAL=['#2a78d6','#eb6834','#1baf7a','#eda100','#9b6cd6','#d03b3b','#28a3a3','#b7b5af','#7a86d6','#d67ab0'];
   var CATS=[['rev',FT.skRev],['chg',FT.skOpex],['eb',FT.skEbitda]];
-  box.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;padding:4px 2px">'+
-    CATS.map(function(c,ci){return '<div style="text-align:center">'+
+  box.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;padding:4px 2px;justify-items:center;align-items:start">'+
+    CATS.map(function(c,ci){return '<div style="text-align:center;width:100%">'+
       '<div style="font-size:13.5px;font-weight:600;margin-bottom:6px">'+c[1]+'</div>'+
-      '<div style="position:relative;height:170px"><canvas id="pie'+ci+'"></canvas></div>'+
+      '<div style="position:relative;width:190px;height:190px;margin:0 auto"><canvas id="pie'+ci+'"></canvas></div>'+
       '<div class="mut" id="pieneg'+ci+'" style="font-size:12px;margin-top:6px"></div></div>';}).join('')+
     '</div><div id="pieleg" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px;font-size:12.5px"></div>';
   document.getElementById('pieleg').innerHTML=rows.map(function(rw,i){
@@ -330,9 +330,14 @@ function drawPies(){
 function draw2(){
  var _sk=document.getElementById('sk'),_cv=document.getElementById('c2');
  if(!_sk||!_cv)return;
- _sk.style.display=(CM==='S')?'block':'none';_cv.style.display=(CM==='S')?'none':'block';
- for(const b of ['bW','bS']){var _e=document.getElementById(b);if(_e)_e.style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';}
+ /* destroy AVANT d'afficher/masquer : Chart.js restaure le display d'origine du canvas à la destruction */
  if(CH2){CH2.destroy();CH2=null;}
+ _sk.style.display=(CM==='S')?'block':'none';_cv.style.display=(CM==='S')?'none':'block';
+ /* En mode camemberts le cadre prend la hauteur de son contenu : à 330 px fixes
+    avec overflow masqué, titres, légende et bas des beignets étaient coupés. */
+ var _bx=document.getElementById('box2');if(_bx){_bx.style.height=(CM==='S')?'auto':'';_bx.style.overflow=(CM==='S')?'visible':'';}
+ _sk.style.height=(CM==='S')?'auto':'100%';
+ for(const b of ['bW','bS']){var _e=document.getElementById(b);if(_e)_e.style.borderColor=('b'+CM===b)?'#898781':'#2c2b30';}
  if(CM==='S'){drawPies();return;}
  /* Waterfall du périmètre : CA → charges → EBITDA, depuis les KPI scopés. */
  var rev=kpiOf('revenue'),eb=kpiOf('ebitda');
@@ -358,7 +363,7 @@ draw();
    grand vide (régression vue en prod). */
 window.addEventListener('load',function(){try{if(typeof draw2==='function')draw2();}catch(e){}});</script>` : ""}
 
-<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, dayU: T.dayU, derivedGl: T.derivedGl, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
+<script>window.__KPIG=${JSON.stringify(Object.fromEntries(r.kpis.map(k => [k.id, k.value])))};window.__CCY=${JSON.stringify(CCY)};window.__FC=${JSON.stringify(r.forecast ?? null).replace(/</g, "\\u003c")};window.__EN=${JSON.stringify(r.entity_names ?? {})};window.__FT=${JSON.stringify({ hide: T.hide, project: T.project, old11: T.old11, global: T.global, entity: T.entity, bu: T.bu, blocked: T.blocked, prov: T.prov, dNA: T.dNA, obs: T.obs, fb: T.fb, recv: T.recv, pay: T.pay, methWc: T.methWc, methDefault: T.methDefault, dayU: T.dayU, derivedGl: T.derivedGl, realBar: T.realBar, projBar: T.projBar, ebitdaLine: T.ebitdaLine, projCash: T.projCash, noD: T.noD, noBudget: T.noBudget, total: T.total, byEntity: T.byEntity, byBU: (r.analytic_axis?.label ?? T.byBU), axisNoCash: T.axisNoCash, scopeNote: T.scopeNote, notInScope: T.notInScope, allEnt: T.allEnt, allAx: T.allAx, runout: T.runout, groupLevel: T.groupLevel, sankeyNA: T.sankeyNA, pies: T.pies, negEbitda: T.negEbitda, piesNA: T.piesNA, piesNoPos: T.piesNoPos, negContrib: T.negContrib, skRev: T.skRev, skCogs: T.skCogs, skGp: T.skGp, skOpex: T.skOpex, skEbitda: T.skEbitda, skBelow: T.skBelow, skNi: T.skNi, byLine: T.byLine, flCollect: T.flCollect, flPay: T.flPay, flPayroll: T.flPayroll, flOpex: T.flOpex, flTax: T.flTax, flInt: T.flInt }).replace(/</g, "\\u003c")};</script>
 <script>
 let FCON=false,CHD=null,CH2=null,DDIM='l';
 /* Le périmètre pilote la page : il rescope tout ce que le résultat porte par
@@ -473,6 +478,7 @@ function fcdraw(){
   const sc=fcscope(),v=window.__SCOPE||'g:',[kind,id]=v.split(':');
   const blk=document.getElementById('fcblocked');
   if(sc.blocked){blk.style.display='block';blk.textContent='⚠ '+FT.blocked+(sc.blocked.reason||JSON.stringify(sc.blocked));}
+  else if(window.__FC.provisional){blk.style.display='block';blk.textContent='⚠ '+FT.prov.replace('{p}',window.__FC.provisional.period||'');}
   else blk.style.display='none';
   /* cartes de méthodes : DSO/DPO OBSERVÉS GL du périmètre, provenance affichée (critère 3) */
   const m=window.__FC.methods||{},box=document.getElementById('fcmeth');
@@ -484,10 +490,15 @@ function fcdraw(){
   const pm=kind==='e'?m.dpo_by_entity:kind==='b'?m.dpo_by_bu:null;
   if(dm&&dm[id]&&okD(dm[id].value))cards+=card(FT.recv,'DSO '+dm[id].value+' j ('+src(dm[id].source)+', '+id+')');
   if(pm&&pm[id]&&okD(pm[id].value))cards+=card(FT.pay,'DPO '+pm[id].value+' j ('+src(pm[id].source)+', '+id+')');
-  if(kind==='g'){const es=Object.entries(m.dso_by_entity||{});
-    if(es.length)cards+=card(FT.recv,'DSO/entity: '+es.filter(e=>okD(e[1].value)).map(([e,x])=>nm(e)+' '+x.value+' j').join(' · '));
-    const ps=Object.entries(m.dpo_by_entity||{});
-    if(ps.length)cards+=card(FT.pay,'DPO/entity: '+ps.filter(e=>okD(e[1].value)).map(([e,x])=>e+' '+x.value+' j').join(' · '));}
+  if(kind==='g'){
+    /* TOUTES les entités sont listées : une valeur absente ou hors plage
+       (0-365 j) s'affiche « n/a » au lieu de disparaître — une carte vide
+       ne dit pas pourquoi. */
+    const ents=Object.keys((window.__FC.by_entity)||{});
+    const line=(mm,u)=>ents.map(e=>{const x=(mm||{})[e];return nm(e)+' '+(x&&okD(x.value)?x.value+' '+u:FT.dNA);}).join(' · ');
+    if(ents.length&&Object.keys(m.dso_by_entity||{}).length+Object.keys(m.dpo_by_entity||{}).length>0){
+      cards+=card(FT.recv,'DSO/entity: '+line(m.dso_by_entity,'j'));
+      cards+=card(FT.pay,'DPO/entity: '+line(m.dpo_by_entity,'j'));}}
   const rows=sc.series||[];
   if(rows.length&&rows[0].impliedDSO!==undefined)if(okD(rows[0].impliedDSO))cards+=card(FT.methWc,'impliedDSO '+Math.round(rows[0].impliedDSO)+' '+FT.dayU+' · impliedDPO '+(rows[0].impliedDPO!==undefined?Math.round(rows[0].impliedDPO)+' '+FT.dayU:'—')+' '+FT.derivedGl);
   box.innerHTML=cards||card('—',FT.methDefault);

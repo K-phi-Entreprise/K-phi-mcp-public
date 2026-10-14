@@ -108,7 +108,28 @@ export class KphiHttpEngine implements AnalysisEngine {
 
     // Bilan = position cumulée jusqu'au dernier mois (asOf). Ratios de position
     // (trésorerie, dette, liquidité, DSO/DPO) viennent de cette lecture.
-    const position = await this.statements(sb.token, { asOf: last, fc: true, horizon: 6 });
+    let position = await this.statements(sb.token, { asOf: last, fc: true, horizon: 6 });
+    /* Porte de clôture : un sandbox n'a, par construction, aucune clôture.
+       Bloquer la projection ici l'obligerait à passer par l'offre payante pour
+       voir quoi que ce soit. On désactive donc la porte DANS CE SANDBOX
+       (réglage fc_config du locataire jetable, le même que gouvernance) et on
+       relance : la projection est alors rendue, marquée PROVISOIRE et
+       « sous réserve de clôture » — jamais présentée comme définitive. */
+    let provisional: { period: string | null; reason: string } | null = null;
+    const gate = position.fcBlocked as { kind?: string | null; period?: string | null; reason?: string } | null | undefined;
+    if (gate?.kind === "close_gate") {
+      try {
+        const pr = await this.fetch("/api/config/fc_config", {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${sb.token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ requireClose: false, arapSource: "ledger" }),
+        });
+        if (pr.ok) {
+          position = await this.statements(sb.token, { asOf: last, fc: true, horizon: 6 });
+          provisional = { period: gate.period ?? last, reason: gate.reason ?? "" };
+        } else console.warn(`fc_config: ${pr.status} (forecast left blocked)`);
+      } catch (e) { console.warn("fc_config failed (non bloquant):", e instanceof Error ? e.message : e); }
+    }
     // P&L = flux : le moteur le rend par mois quoi qu'il arrive en mode cumulé
     // (voir routes/statements.js, scope.pers). Pour un diagnostic d'exercice on
     // somme les flux mensuels ici — arithmétiquement exact, et cohérent avec ce
@@ -146,6 +167,7 @@ export class KphiHttpEngine implements AnalysisEngine {
 
     const result = toAnalysisResult(parsed, position, monthly, input, periods);
     result.forecast = buildForecast(position, entScopes, entFc, buScopes, buFc);
+    if (provisional && result.forecast) (result.forecast as Record<string, unknown>).provisional = provisional;
     /* Noms lisibles : le dashboard affiche « 1000 — Meridian France » plutôt
        qu'un code nu, quand l'export porte les deux colonnes. */
     if (Object.keys(parsed.entityNames ?? {}).length) result.entity_names = parsed.entityNames;

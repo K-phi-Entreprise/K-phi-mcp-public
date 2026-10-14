@@ -16,9 +16,10 @@ const LEDGER = `Date,Account,AccountName,Debit,Credit
 `;
 
 /** Moteur simulé. failImports = nombre de 500 à servir sur /api/gl/import. */
-function mockEngine({ failImports = 0 } = {}) {
-  const calls = { tenant: 0, imports: [], statements: 0, openLink: 0, fc: [] };
+function mockEngine({ failImports = 0, closeGate = false } = {}) {
+  const calls = { tenant: 0, imports: [], statements: 0, openLink: 0, fc: [], cfgPuts: [] };
   let importFails = failImports;
+  let gateOpen = !closeGate;
   globalThis.fetch = async (url, init) => {
     const u = String(url);
     const ok = (body, status = 200) =>
@@ -37,6 +38,10 @@ function mockEngine({ failImports = 0 } = {}) {
       if (importFails > 0) { importFails--; return ok({ error: "Internal server error" }, 500); }
       return ok({ imported: body.entries.length });
     }
+    if (u.includes("/api/config/fc_config")) {
+      calls.cfgPuts.push({ auth: init.headers.Authorization, body: JSON.parse(init.body) });
+      gateOpen = true; return ok({ ok: true });
+    }
     if (u.includes("/api/statements")) {
       calls.statements++;
       const q = new URL(u, "http://x").searchParams;
@@ -52,7 +57,7 @@ function mockEngine({ failImports = 0 } = {}) {
         return ok({ ...base,
           fc: [{ period: "2025-04", sales: 120, impliedDSO: scoped, impliedDPO: 40, collections: 100,
                  payroll: 30, opex: 20, interest: 2, _flowDetails: { heavy: true }, _bgt: { x: 1 } }],
-          fcBlocked: null });
+          fcBlocked: null, ...(!gateOpen ? { fc: [], fcBlocked: { reason: "Period 2025-02 has not been closed.", kind: "close_gate", period: "2025-02" } } : {}) });
       }
       return ok(base);
     }
@@ -345,4 +350,22 @@ test("note de volume : faits mesurés au-delà de 20 000 écritures, jamais une 
     assert.doesNotMatch(note, banned, "aucune comparaison promotionnelle ni impératif");
   const small = await engine().analyze({ content: LEDGER, format_hint: "generic", locale: "fr" });
   assert.ok(!small.notes.some(n => /^Volume:/.test(n)), "pas de note sur un petit fichier");
+});
+
+test("porte de clôture : projection PROVISOIRE (jamais bloquée) — porte levée dans le sandbox, marquée sous réserve de clôture", async () => {
+  const calls = mockEngine({ closeGate: true });
+  const res = await engine().analyze({ content: LEDGER });
+  assert.equal(calls.cfgPuts.length, 1, "fc_config écrit une fois");
+  assert.equal(calls.cfgPuts[0].body.requireClose, false);
+  assert.equal(calls.cfgPuts[0].auth, "Bearer jwt", "avec le jeton du sandbox jetable");
+  assert.equal(res.forecast.global.blocked, null);
+  assert.ok(res.forecast.global.series.length > 0, "séries projetées présentes");
+  assert.equal(res.forecast.provisional.period, "2025-02");
+});
+
+test("porte de clôture absente : aucune écriture de config, pas de marque provisoire", async () => {
+  const calls = mockEngine();
+  const res = await engine().analyze({ content: LEDGER });
+  assert.equal(calls.cfgPuts.length, 0);
+  assert.equal(res.forecast.provisional, undefined);
 });

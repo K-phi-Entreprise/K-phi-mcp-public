@@ -137,7 +137,9 @@ app.get("/healthz", (_req, res) => {
 
 // Voir le commentaire sur ICON_PNG plus haut : couvre les résolutions
 // d'icône par convention de domaine, en plus de serverInfo.icons.
-app.get("/favicon.ico", (_req, res) => {
+// /icon.png : URL https stable pour le champ "Icon URL" de la fiche annuaire
+// Claude (fondateur 2026-10-14 : la fiche affichait l'icône par défaut).
+app.get(["/favicon.ico", "/icon.png"], (_req, res) => {
   if (!ICON_PNG) { res.status(404).end(); return; }
   res.set("Content-Type", "image/png");
   res.set("Cache-Control", "public, max-age=86400");

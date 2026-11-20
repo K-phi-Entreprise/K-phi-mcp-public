@@ -89,7 +89,10 @@ export class KphiHttpEngine implements AnalysisEngine {
        l'analyse, header_text par écriture couvre déjà l'affichage. */
     let fcRulesSeeded = 0;
     const coa = parsed.coa_dict ?? {};
-    if (Object.keys(coa).length > 0) {
+    /* Called even when the file names no account (owner, 2026-11-20: the forecast stayed blocked on "Flow rules
+       required" for a ledger whose descriptions change line by line): the engine then builds the rules from the
+       accounts of the imported ledger, classified by number. An engine without that answers seeded 0, as before. */
+    {
       try {
         const r = await this.fetch("/api/internal/sandbox/coa", {
           method: "POST",

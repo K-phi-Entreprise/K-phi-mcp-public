@@ -286,6 +286,17 @@ ${(() => {
 <span class="mut">${esc(T.cta_tail)}</span>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>/* every chart's numbers read like the tiles (owner, 2026-11-20: "fix the format of numbers"): axes in k / M / bn,
+   tooltips with two decimals and the bar's own amount, never the raw [start, end] of a floating bar */
+(function(){if(!window.Chart)return;
+var f=function(v){v=Number(v);if(!isFinite(v))return '';var a=Math.abs(v),r=function(x,d){return String(Number(x.toFixed(d)));};
+ return a>=1e9?r(v/1e9,2)+' bn':a>=1e6?r(v/1e6,2)+' M':a>=1e3?r(v/1e3,1)+' k':r(v,2);};
+window.__fmtChart=f;
+Chart.defaults.scales.linear.ticks.callback=function(v){return f(v);};
+Chart.defaults.plugins.tooltip.callbacks.label=function(c){var r=c.raw,p=c.parsed,h=c.chart&&c.chart.options&&c.chart.options.indexAxis==='y';
+ var v=Array.isArray(r)?Math.abs(Number(r[1])-Number(r[0])):(p&&typeof p==='object'?(h?p.x:p.y):p);
+ return (c.dataset&&c.dataset.label?c.dataset.label+': ':'')+f(v);};
+})();</script>
 ${series.length > 1 ? `<script>
 const S=${JSON.stringify(series)};let CM='W',CH;
 const FYr=S.reduce((a,s)=>a+(s.revenue||0),0),FYe=S.reduce((a,s)=>a+(s.ebitda||0),0);
